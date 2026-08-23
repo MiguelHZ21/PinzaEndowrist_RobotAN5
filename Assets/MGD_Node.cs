@@ -174,7 +174,10 @@ public class MGD_Node : MonoBehaviour
         double rx = Math.Floor(Math.Atan2(T[2, 1], T[2, 2]) * 180/Math.PI * 100) / 100;
         double rz = Math.Floor(Math.Atan2(T[1, 0], T[0, 0]) * 180/Math.PI * 100) / 100;
 
-        return $"{Px},{Py},{Pz},{rx},{ry},{rz}";
+        return string.Format(
+            System.Globalization.CultureInfo.InvariantCulture,
+            "{0:F2},{1:F2},{2:F2},{3:F2},{4:F2},{5:F2}",
+            Px, Py, Pz, rx, ry, rz);
     }
 
     private static double[,] DhMatrixStatic(double a, double alpha, double d, double theta)
