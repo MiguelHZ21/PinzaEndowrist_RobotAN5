@@ -537,17 +537,24 @@ public class ControlArticular : MonoBehaviour
 
             for (int i = 0; i < jointPositionsList.Count; i++)
             {
+                // Obtener los valores de la pinza para este punto
+                float[] pinza = (endoWristPositionsList.Count > i) ? endoWristPositionsList[i] : new float[4];
+                string pinzaStr = string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "{0:F6},{1:F6},{2:F6},{3:F6}",
+                    pinza[0], pinza[1], pinza[2], pinza[3]);
+
                 // Obtener el resultado de MGD asociado al punto
                 if (pointToDirectaResult.TryGetValue(i, out string mgdResult))
                 {
-                    // Escribir posición, velocidad y delay
-                    string line = $"{mgdResult},{speedList[i]},{delayList[i]}";
+                    // Escribir posicion, velocidad, delay y pinza
+                    string line = $"{mgdResult},{speedList[i]},{delayList[i]},{pinzaStr}";
                     writer.WriteLine(line);
                 }
                 else
                 {
                     // Si no hay resultado de MGD, indicar ausencia
-                    string line = $"Sin MGD,{speedList[i]},{delayList[i]}";
+                    string line = $"Sin MGD,{speedList[i]},{delayList[i]},{pinzaStr}";
                     writer.WriteLine(line);
                     Debug.LogWarning($"No se encontró resultado de MGD para el punto {i}. Se guardará sin MGD.");
                 }
