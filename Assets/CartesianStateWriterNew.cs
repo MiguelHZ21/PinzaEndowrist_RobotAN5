@@ -649,7 +649,12 @@ public class CartesianStateWriterNew : MonoBehaviour
             {
                 float[] pos = cartesianPositionsList[i];
                 float[] pinza = (endoWristPositionsList.Count > i) ? endoWristPositionsList[i] : new float[4];
-                string line = $"{pos[0]},{pos[1]},{pos[2]},{pos[3]},{pos[4]},{pos[5]},{speedList[i]},{delayList[i]},{pinza[0]},{pinza[1]},{pinza[2]},{pinza[3]}";
+                string line = string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "{0},{1},{2},{3},{4},{5},{6},{7},{8:F6},{9:F6},{10:F6},{11:F6}",
+                    pos[0], pos[1], pos[2], pos[3], pos[4], pos[5],
+                    speedList[i], delayList[i],
+                    pinza[0], pinza[1], pinza[2], pinza[3]);
                 writer.WriteLine(line);
             }
         }
