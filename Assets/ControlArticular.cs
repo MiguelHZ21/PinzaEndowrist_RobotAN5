@@ -68,6 +68,10 @@ public class ControlArticular : MonoBehaviour
     // Cola para índices pendientes de recibir resultados de MGD
     private Queue<int> pendingMGDIndices = new Queue<int>();
 
+    // Cola segura para recibir resultados MGD desde el hilo de ROS al hilo principal
+    private bool hasPendingMGD = false;
+    private string pendingMGDMessage = null;
+
     // Ruta donde se guardará el archivo de posiciones
     private string savePath = "/home/miguel/Interfaz AppDesigner AN5";
 
@@ -417,10 +421,13 @@ public class ControlArticular : MonoBehaviour
         }
     }
 
-    // Recibir y almacenar el resultado de cinemática directa
+    // Recibir y almacenar el resultado de cinemática directa.
+    // ATENCIÓN: Este método es llamado desde el hilo secundario de ROS.
+    // NO se puede acceder a la UI ni a Corrutinas desde aquí.
+    // Solo guardamos el mensaje y lo procesamos en Update() (hilo principal).
     private void ReceiveDirectaKinematicsResult(string messageData)
     {
-        Debug.Log("ControlArticular recibió resultado de MGD: " + messageData);
+        Debug.Log("ControlArticular recibió resultado de MGD (hilo ROS): " + messageData);
 
         if (string.IsNullOrEmpty(messageData))
         {
@@ -428,25 +435,41 @@ public class ControlArticular : MonoBehaviour
             return;
         }
 
-        if (pendingMGDIndices.Count > 0)
+        // Guardar para procesamiento seguro en el hilo principal
+        pendingMGDMessage = messageData;
+        hasPendingMGD = true;
+    }
+
+    void Update()
+    {
+        // Procesar el resultado MGD en el hilo principal de Unity.
+        // El hilo de ROS solo llena 'pendingMGDMessage'; aquí lo consumimos
+        // de forma segura para poder modificar la UI y estructuras de datos.
+        if (hasPendingMGD && pendingMGDMessage != null)
         {
-            int index = pendingMGDIndices.Dequeue();
-            if (!pointToDirectaResult.ContainsKey(index))
+            hasPendingMGD = false;
+            string messageData = pendingMGDMessage;
+            pendingMGDMessage = null;
+
+            if (pendingMGDIndices.Count > 0)
             {
-                pointToDirectaResult.Add(index, messageData);
-                Debug.Log($"Resultado de cinemática directa recibido para punto {index} y almacenado.");
+                int index = pendingMGDIndices.Dequeue();
+                if (!pointToDirectaResult.ContainsKey(index))
+                {
+                    pointToDirectaResult.Add(index, messageData);
+                    Debug.Log($"Resultado de MGD asignado al punto {index}.");
+                }
+                else
+                {
+                    Debug.LogWarning($"El punto {index} ya tiene un resultado de MGD.");
+                }
+
+                UpdateCoordinatesDisplay();
             }
             else
             {
-                Debug.LogWarning($"El punto {index} ya tiene un resultado de cinemática directa asociado.");
+                Debug.LogWarning("No hay índices pendientes para asignar el resultado de MGD.");
             }
-
-            // Actualizar la visualización con el resultado de MGD
-            UpdateCoordinatesDisplay();
-        }
-        else
-        {
-            Debug.LogWarning("No hay índices pendientes para asignar el resultado de MGD.");
         }
     }
 
