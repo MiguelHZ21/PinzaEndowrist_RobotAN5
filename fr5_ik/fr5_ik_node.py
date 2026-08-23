@@ -48,7 +48,10 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
+import subprocess
 import sys
+import time
 
 import numpy as np
 
@@ -93,8 +96,12 @@ class NodoIK(Node):
         qos = _qos_comandos()
         self.pub_q = self.create_publisher(String, args.salida_topico, qos)
         self.pub_estado = self.create_publisher(String, "/ik_status", qos)
+        self.pub_api = self.create_publisher(String, "/api_command", qos)
 
         self.create_subscription(String, args.pose_topico, self.cb_pose, qos)
+        self.create_subscription(String, "/input_cartesian_path", self.cb_path, qos)
+
+        self.processing_commands = False
 
         if args.joint_tipo == "string":
             self.create_subscription(String, args.joint_topico,
@@ -108,6 +115,7 @@ class NodoIK(Node):
             f"fr5_ik_node listo | d6={self.params.d6} m | "
             f"juntas: {args.joint_topico} ({args.joint_tipo}) | "
             f"poses: {args.pose_topico} -> {args.salida_topico} | "
+            f"trayectorias: /input_cartesian_path | "
             f"salto_max={args.salto_max} deg")
 
     # ---------------- posicion actual del robot real ----------------------
@@ -203,6 +211,148 @@ class NodoIK(Node):
         self._estado(
             f"OK {sol.rama} | q=[{', '.join(f'{g:.3f}' for g in grados)}]"
             f"{aviso}")
+
+    # ---------------- lectura y ejecucion de archivos TXT de trayectoria ------------------------
+    def cb_path(self, msg: String) -> None:
+        if self.processing_commands:
+            self._estado("Ya se están procesando comandos. Ignorando nuevo archivo.", "warn")
+            return
+
+        file_path = msg.data.strip()
+        if not os.path.exists(file_path):
+            self._estado(f"Archivo no encontrado: {file_path}", "error")
+            return
+
+        self.processing_commands = True
+        try:
+            self._procesar_archivo_trayectoria(file_path)
+        except Exception as e:
+            self._estado(f"Error procesando trayectoria {file_path}: {e}", "error")
+        finally:
+            self.processing_commands = False
+
+    def _procesar_archivo_trayectoria(self, file_path: str) -> None:
+        with open(file_path, "r", encoding="utf-8") as f:
+            lines = [line.strip() for line in f if line.strip()]
+
+        if not lines:
+            self._estado(f"Archivo vacío: {file_path}", "error")
+            return
+
+        header = lines[0].lower()
+        data_lines = lines[1:]
+
+        x_lim = (-830.0, -320.0)
+        y_lim = (-500.0, 500.0)
+        z_lim = (0.0, 720.0)
+        rx_lim_1 = (-180.0, -20.0)
+        rx_lim_2 = (20.0, 180.0)
+
+        valid_rows = []
+        valid_joints = []
+        semilla_actual = self.q_actual if self.q_actual is not None else np.radians([0.0, -90.0, 90.0, -90.0, -90.0, 90.0])
+
+        for idx, line in enumerate(data_lines, 1):
+            parts = [x.strip() for x in line.split(",")]
+            if len(parts) < 8:
+                self._estado(f"Fila {idx} invalida (menos de 8 columnas): {line}", "error")
+                return
+
+            try:
+                # Tomamos estrictamente las 6 primeras columnas para las coordenadas del robot (X,Y,Z,Rx,Ry,Rz)
+                x, y, z, rx, ry, rz = [float(p) for p in parts[:6]]
+                velocidad = float(parts[6])
+                control = float(parts[7])
+            except ValueError:
+                self._estado(f"Error al parsear numeros en fila {idx}: {line}", "error")
+                return
+
+            # Validar limites cartesianos del robot
+            if not (x_lim[0] <= x <= x_lim[1] and y_lim[0] <= y <= y_lim[1] and z_lim[0] <= z <= z_lim[1]):
+                self._estado(f"Posicion fuera de limites en fila {idx}: X={x}, Y={y}, Z={z}", "error")
+                return
+
+            if not ((rx_lim_1[0] <= rx <= rx_lim_1[1]) or (rx_lim_2[0] <= rx <= rx_lim_2[1])):
+                self._estado(f"Orientacion Rx fuera de limites en fila {idx}: Rx={rx}", "error")
+                return
+
+            # Resolver IK
+            T = pose_a_T(x / 1000.0, y / 1000.0, z / 1000.0,
+                         math.radians(rx), math.radians(ry), math.radians(rz))
+            sol = ik_mejor(T, q_semilla=semilla_actual, params=self.params)
+
+            if sol is None:
+                self._estado(f"Sin solucion IK para fila {idx}: {x},{y},{z},{rx},{ry},{rz}", "error")
+                return
+
+            q_deg = sol.grados()
+            j4, j5 = q_deg[3], q_deg[4]
+
+            # Validacion J4/J5 igual a MATLAB
+            if not ((0 <= j4 <= 90 and -90 <= j5 <= 90) or
+                    (-180 <= j4 <= 0) or
+                    (-267 <= j4 <= -180 and -90 <= j5 <= 90)):
+                self._estado(f"Valores J4/J5 fuera de limites en fila {idx}: J4={j4:.2f}, J5={j5:.2f}", "error")
+                return
+
+            semilla_actual = sol.q
+            valid_rows.append((x, y, z, rx, ry, rz, velocidad, control))
+            valid_joints.append((q_deg, velocidad, control))
+
+        self._estado(f"Archivo {file_path} validado correctamente ({len(valid_rows)} puntos). Header: {header}")
+
+        save_dir = "/home/miguel/Interfaz AppDesigner AN5"
+        os.makedirs(save_dir, exist_ok=True)
+
+        if header == "cartesiano":
+            # 1. Escribir python_position.txt con las 8 primeras columnas (X,Y,Z,Rx,Ry,Rz,speed,control)
+            py_pos_file = os.path.join(save_dir, "python_position.txt")
+            with open(py_pos_file, "w", encoding="utf-8") as f:
+                for row in valid_rows:
+                    f.write(f"{row[0]},{row[1]},{row[2]},{row[3]},{row[4]},{row[5]},{row[6]},{row[7]}\n")
+
+            # 2. Escribir joint_python_position.txt con los angulos articulares
+            joint_py_file = os.path.join(save_dir, "joint_python_position.txt")
+            with open(joint_py_file, "w", encoding="utf-8") as f:
+                for (q_deg, vel, ctrl) in valid_joints:
+                    q_str = ",".join(f"{g:.17f}" for g in q_deg)
+                    f.write(f"{q_str},{vel:.2f},{ctrl:.2f}\n")
+
+            self._estado("Archivos python_position.txt y joint_python_position.txt generados. Ejecutando MoveL.py...")
+
+            # 3. Lanzar MoveL.py
+            script_path = "/home/miguel/ros2_ws/src/code/code/MoveL.py"
+            cmd = [sys.executable, script_path]
+            proc = subprocess.Popen(cmd)
+            self._estado(f"MoveL.py lanzado (PID: {proc.pid})")
+
+        elif header == "articular":
+            # Enviar comandos articulares al robot por /api_command
+            all_control_zero = all(row[7] == 0 for row in valid_rows)
+            if all_control_zero:
+                self.pub_api.publish(String(data="SplineStart()"))
+                time.sleep(0.05)
+
+            max_index = 5
+            for i, (q_deg, vel, ctrl) in enumerate(valid_joints):
+                index = (i % max_index) + 1
+                cmd_jnt = f"JNTPoint({index},{q_deg[0]:.2f},{q_deg[1]:.2f},{q_deg[2]:.2f},{q_deg[3]:.2f},{q_deg[4]:.2f},{q_deg[5]:.2f})"
+                self.pub_api.publish(String(data=cmd_jnt))
+                time.sleep(0.01)
+
+                if ctrl != 0:
+                    cmd_mov = f"MoveJ(JNT{index},{vel:.2f})"
+                    self.pub_api.publish(String(data=cmd_mov))
+                    time.sleep(ctrl)
+                else:
+                    cmd_mov = f"SplinePTP(JNT{index},{vel:.2f})"
+                    self.pub_api.publish(String(data=cmd_mov))
+                    time.sleep(0.05)
+
+            if all_control_zero:
+                self.pub_api.publish(String(data="SplineEnd()"))
+
+            self._estado("Comandos de trayectoria articular enviados correctamente a /api_command.")
 
 
 def main() -> None:
