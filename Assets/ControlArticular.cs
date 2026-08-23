@@ -348,6 +348,8 @@ public class ControlArticular : MonoBehaviour
     // Añadir una posición articular a la lista y enviarla a ROS2
     private void AddJointPosition()
     {
+        int newIndex = jointPositionsList.Count; // Índice del punto que se va a agregar
+
         jointPositionsList.Add((float[])jointPositions.Clone());
         speedList.Add(speed);
 
@@ -364,13 +366,16 @@ public class ControlArticular : MonoBehaviour
         float pointDelay = (DelayModeController.Instance != null && DelayModeController.Instance.IsDelayModeActive()) ? DelayModeController.Instance.GetDelayTime() : 0f;
         delayList.Add(pointDelay);
 
-        // Enviar las posiciones articulares al tópico de cinemática directa
+        // Calcular el MGD directamente en Unity (sin esperar respuesta de ROS)
+        // Esto evita la condición de carrera que causaba "Sin MGD" en el archivo TXT.
+        string mgdResult = MGD_Node.ComputeMGD(jointPositions);
+        pointToDirectaResult[newIndex] = mgdResult;
+        Debug.Log($"MGD calculado localmente para punto {newIndex}: {mgdResult}");
+
+        // Enviar igualmente a ROS para mantener la visualización en la interfaz
         string jointPositionsString = string.Join(",", jointPositions);
         ros2CommandSender.SendCommandToTopic("/input_joint_position", jointPositionsString);
         Debug.Log($"Enviado al tópico de cinemática directa (/input_joint_position): {jointPositionsString}");
-
-        // Agregar el índice a la cola de pendientes
-        pendingMGDIndices.Enqueue(jointPositionsList.Count - 1);
 
         // Actualizar la visualización de puntos
         UpdateCoordinatesDisplay();

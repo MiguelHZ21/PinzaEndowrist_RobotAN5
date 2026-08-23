@@ -136,6 +136,75 @@ public class MGD_Node : MonoBehaviour
         Debug.Log($"Salida [Px, Py, Pz, rx, ry, rz]: {salida}"); // Mensaje en español
     }
 
+    // ---------------------------------------------------------------
+    // Método estático público: calcula el MGD directamente en Unity
+    // sin pasar por ROS. Recibe los 6 ángulos en grados y devuelve
+    // la cadena "Px,Py,Pz,rx,ry,rz" lista para guardar en el TXT.
+    // ---------------------------------------------------------------
+    public static string ComputeMGD(float[] jointDegrees)
+    {
+        double[,] DH = new double[,] {
+            {0, Math.PI / 2, 0.152, 0},
+            {-0.425, 0, 0, 0},
+            {-0.395, 0, 0, 0},
+            {0, Math.PI / 2, 0.102, 0},
+            {0, -Math.PI / 2, 0.102, 0},
+            {0, 0, 0.267, 0}
+        };
+
+        double[] theta = new double[6];
+        for (int i = 0; i < jointDegrees.Length; i++)
+            theta[i] = jointDegrees[i] * Math.PI / 180.0;
+
+        double[,] T = MatrixIdentityStatic(4);
+        for (int i = 0; i < 6; i++)
+        {
+            double a     = DH[i, 0];
+            double alpha = DH[i, 1];
+            double d     = DH[i, 2];
+            double th    = theta[i] + DH[i, 3];
+            T = MatrixMultiplyStatic(T, DhMatrixStatic(a, alpha, d, th));
+        }
+
+        double Px = Math.Floor(T[0, 3] * 1000 * 100) / 100;
+        double Py = Math.Floor(T[1, 3] * 1000 * 100) / 100;
+        double Pz = Math.Floor(T[2, 3] * 1000 * 100) / 100;
+
+        double ry = Math.Floor(Math.Atan2(-T[2, 0], Math.Sqrt(T[0,0]*T[0,0] + T[1,0]*T[1,0])) * 180/Math.PI * 100) / 100;
+        double rx = Math.Floor(Math.Atan2(T[2, 1], T[2, 2]) * 180/Math.PI * 100) / 100;
+        double rz = Math.Floor(Math.Atan2(T[1, 0], T[0, 0]) * 180/Math.PI * 100) / 100;
+
+        return $"{Px},{Py},{Pz},{rx},{ry},{rz}";
+    }
+
+    private static double[,] DhMatrixStatic(double a, double alpha, double d, double theta)
+    {
+        return new double[4, 4] {
+            { Math.Cos(theta), -Math.Sin(theta)*Math.Cos(alpha),  Math.Sin(theta)*Math.Sin(alpha), a*Math.Cos(theta) },
+            { Math.Sin(theta),  Math.Cos(theta)*Math.Cos(alpha), -Math.Cos(theta)*Math.Sin(alpha), a*Math.Sin(theta) },
+            { 0,                Math.Sin(alpha),                   Math.Cos(alpha),                 d                },
+            { 0,                0,                                 0,                               1                }
+        };
+    }
+
+    private static double[,] MatrixIdentityStatic(int n)
+    {
+        double[,] m = new double[n, n];
+        for (int i = 0; i < n; i++) m[i, i] = 1;
+        return m;
+    }
+
+    private static double[,] MatrixMultiplyStatic(double[,] A, double[,] B)
+    {
+        int r = A.GetLength(0), c = B.GetLength(1), k = A.GetLength(1);
+        double[,] R = new double[r, c];
+        for (int i = 0; i < r; i++)
+            for (int j = 0; j < c; j++)
+                for (int l = 0; l < k; l++)
+                    R[i, j] += A[i, l] * B[l, j];
+        return R;
+    }
+
     // Función para calcular la matriz de transformación de Denavit-Hartenberg
     double[,] dh_matrix(double a, double alpha, double d, double theta)
     {
