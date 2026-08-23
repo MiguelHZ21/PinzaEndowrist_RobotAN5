@@ -66,6 +66,11 @@ public class CartesianStateWriterNew : MonoBehaviour
 
     private int pointIndex = 1;  // Índice para los puntos (aumenta al agregar, se reinicia al enviar cada lote)
     private float[] currentPositions = new float[6];
+
+    // Cola segura para pasar datos desde el hilo de ROS al hilo principal de Unity
+    private bool hasNewIkResult = false;
+    private float[] pendingIkResult = null;
+    private bool pendingNaNError = false;  // Bandera para mostrar error de NaN en hilo principal
     private bool awaitingInverseKinematics = false;
     private bool isListening = true;
     private bool isManualEditing = false;
@@ -125,6 +130,26 @@ public class CartesianStateWriterNew : MonoBehaviour
             isListening = false;
             isManualEditing = true;
         }
+
+        // Procesar el resultado IK en el hilo principal de Unity.
+        // ROS usa hilos secundarios: llamar StartCoroutine o modificar la UI desde ahí
+        // causa un colapso silencioso. Por eso solo guardamos el resultado en el hilo de ROS
+        // y lo procesamos aquí, en el hilo principal (Update), donde Unity sí lo permite.
+        if (hasNewIkResult && pendingIkResult != null)
+        {
+            hasNewIkResult = false;
+            float[] resultToProcess = pendingIkResult;
+            pendingIkResult = null;
+            ProcesarJointPositions(resultToProcess);
+        }
+
+        // Mostrar error de NaN en el hilo principal (la UI solo puede modificarse aqui)
+        if (pendingNaNError)
+        {
+            pendingNaNError = false;
+            coordinatesDisplay.text = "Sin solucion IK para este punto.\nIntenta una posicion diferente.";
+            UpdateCoordinatesDisplay();
+        }
     }
 
     // Método para recibir la respuesta de la cinemática inversa (IK)
@@ -149,19 +174,58 @@ public class CartesianStateWriterNew : MonoBehaviour
             return;
         }
 
-        // Parsear a float[]
+        // Parsear a float[] con formato invariante (evita problemas con comas/puntos segun el idioma del SO)
         float[] ikResult = new float[6];
         for (int i = 0; i < parts.Length; i++)
         {
-            if (!float.TryParse(parts[i], out ikResult[i]))
+            if (!float.TryParse(parts[i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out ikResult[i]))
             {
                 Debug.LogError($"Error al parsear la posición {i}: {parts[i]}");
+                awaitingInverseKinematics = false;
                 return;
             }
         }
 
-        // Procesar el resultado IK
-        ProcesarJointPositions(ikResult);
+        // Verificar si algún valor es NaN: ocurre cuando Matlab no encuentra solución IK
+        // para las coordenadas dadas (singularidad, fuera del espacio de trabajo real, etc.).
+        // En ese caso se revierte el punto que se estaba agregando y se avisa al usuario.
+        bool hasNaN = false;
+        for (int i = 0; i < ikResult.Length; i++)
+        {
+            if (float.IsNaN(ikResult[i]))
+            {
+                hasNaN = true;
+                break;
+            }
+        }
+
+        if (hasNaN)
+        {
+            Debug.LogWarning("IK: Matlab devolvio NaN. No existe solucion para este punto.");
+            awaitingInverseKinematics = false;
+
+            // Revertir los datos ya guardados en las listas para este punto fallido
+            if (cartesianPositionsList.Count > 0)   cartesianPositionsList.RemoveAt(cartesianPositionsList.Count - 1);
+            if (cartesianCommandsList.Count > 0)    cartesianCommandsList.RemoveAt(cartesianCommandsList.Count - 1);
+            if (cartPointCommands.Count > 0)        cartPointCommands.RemoveAt(cartPointCommands.Count - 1);
+            if (speedList.Count > 0)                speedList.RemoveAt(speedList.Count - 1);
+            if (delayList.Count > 0)                delayList.RemoveAt(delayList.Count - 1);
+            if (cartesianCoordinates.Count > 0)     cartesianCoordinates.RemoveAt(cartesianCoordinates.Count - 1);
+            if (endoWristPositionsList.Count > 0)   endoWristPositionsList.RemoveAt(endoWristPositionsList.Count - 1);
+
+            // Guardar la notificacion en la cola para mostrarla en el hilo principal
+            pendingIkResult = null;
+            hasNewIkResult = false;
+            pendingNaNError = true;
+            return;
+        }
+
+        // NO llamamos ProcesarJointPositions() directamente desde aquí.
+        // Este método es invocado por el hilo secundario de ROS, y Unity no permite
+        // lanzar corrutinas (StartCoroutine) ni modificar la UI desde hilos secundarios.
+        // En cambio, guardamos el resultado en una variable y Update() lo procesa de forma segura.
+        pendingIkResult = ikResult;
+        hasNewIkResult = true;
     }
 
     // Procesa el resultado de la cinemática inversa (IK)
