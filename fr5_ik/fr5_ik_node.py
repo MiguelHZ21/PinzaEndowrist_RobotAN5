@@ -111,12 +111,7 @@ class NodoIK(Node):
             self.create_subscription(JointState, args.joint_topico,
                                      self.cb_juntas_jointstate, qos)
 
-        self.get_logger().info(
-            f"fr5_ik_node listo | d6={self.params.d6} m | "
-            f"juntas: {args.joint_topico} ({args.joint_tipo}) | "
-            f"poses: {args.pose_topico} -> {args.salida_topico} | "
-            f"trayectorias: /input_cartesian_path | "
-            f"salto_max={args.salto_max} deg")
+        self.get_logger().info("fr5_ik esperando mensajes...")
 
     # ---------------- posicion actual del robot real ----------------------
     def cb_juntas_string(self, msg: String) -> None:
@@ -172,19 +167,14 @@ class NodoIK(Node):
 
         semilla = self.q_actual
         if semilla is None:
-            # Si aún no se recibe la posición del robot real, usamos la postura "Home" natural [0, -90, 90, -90, -90, 90] deg
-            # para seleccionar la rama con codo hacia abajo igual que MATLAB, evitando codo invertido.
             semilla = np.radians([0.0, -90.0, 90.0, -90.0, -90.0, 90.0])
-            self._estado("AVISO: todavia no llego la posicion real del robot; "
-                         "usando postura Home por defecto [0,-90,90,-90,-90,90] deg", "warn")
+            self._estado("AVISO: Posicion real no recibida. Usando postura Home [0,-90,90,-90,-90,90]", "warn")
 
         sol = ik_mejor(T, q_semilla=semilla,
                        salto_max=self.salto_max if self.q_actual is not None else None,
                        params=self.params)
 
         if sol is None:
-            # Distinguir "inalcanzable" de "alcanzable pero salto peligroso":
-            # al usuario le cambia por completo que hacer.
             todas = ik(T, q_semilla=semilla, params=self.params)
             if not todas:
                 self._estado(
@@ -195,8 +185,7 @@ class NodoIK(Node):
                 self._estado(
                     f"RECHAZADA: hay {len(todas)} solucion(es) pero la mejor "
                     f"exige mover una junta {d:.1f} deg (limite "
-                    f"{math.degrees(self.salto_max):.0f}). Reposiciona el robot "
-                    f"o subi --salto-max a conciencia -> {msg.data}", "error")
+                    f"{math.degrees(self.salto_max):.0f}) -> {msg.data}", "error")
             return
 
         grados = sol.grados()
@@ -204,13 +193,12 @@ class NodoIK(Node):
 
         aviso = ""
         if sol.manipulabilidad < 0.01:
-            aviso = (f" | CERCA DE SINGULARIDAD (sigma_min="
-                     f"{sol.manipulabilidad:.4f}): bajá la velocidad")
+            aviso = f" | AVISO: Cerca de singularidad (sigma_min={sol.manipulabilidad:.4f})"
         if sol.singular:
-            aviso += " | muñeca singular: q6 tomado de la posicion actual"
-        self._estado(
-            f"OK {sol.rama} | q=[{', '.join(f'{g:.3f}' for g in grados)}]"
-            f"{aviso}")
+            aviso += " | AVISO: Muñeca singular"
+            
+        q_str = f"J1:{grados[0]:.2f}, J2:{grados[1]:.2f}, J3:{grados[2]:.2f}, J4:{grados[3]:.2f}, J5:{grados[4]:.2f}, J6:{grados[5]:.2f}"
+        self._estado(f"Cinemática calculada: {q_str}{aviso}")
 
     # ---------------- lectura y ejecucion de archivos TXT de trayectoria ------------------------
     def cb_path(self, msg: String) -> None:
