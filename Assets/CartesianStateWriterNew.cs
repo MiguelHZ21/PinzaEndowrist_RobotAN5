@@ -303,12 +303,12 @@ public class CartesianStateWriterNew : MonoBehaviour
 
         if (!awaitingInverseKinematics)
         {
-            float posX = float.Parse(posXInputField.text);
-            float posY = float.Parse(posYInputField.text);
-            float posZ = float.Parse(posZInputField.text);
-            float oriX = float.Parse(oriXInputField.text);
-            float oriY = float.Parse(oriYInputField.text);
-            float oriZ = float.Parse(oriZInputField.text);
+            float posX = ParseFloatInvariant(posXInputField.text);
+            float posY = ParseFloatInvariant(posYInputField.text);
+            float posZ = ParseFloatInvariant(posZInputField.text);
+            float oriX = ParseFloatInvariant(oriXInputField.text);
+            float oriY = ParseFloatInvariant(oriYInputField.text);
+            float oriZ = ParseFloatInvariant(oriZInputField.text);
 
             float[] x_lim = { -830f, -320f };
             float[] y_lim = { -500f, 500f };
@@ -326,12 +326,15 @@ public class CartesianStateWriterNew : MonoBehaviour
             }
 
             string cartesianCommand = FormCartesianCommand();
-            float[] cartesianPositions = Array.ConvertAll(cartesianCommand.Split(','), float.Parse);
+            float[] cartesianPositions = new float[] { posX, posY, posZ, oriX, oriY, oriZ };
 
             cartesianPositionsList.Add(cartesianPositions);
             cartesianCommandsList.Add(cartesianCommand);
 
-            string cartPointCmd = $"CARTPoint({pointIndex},{posX},{posY},{posZ},{oriX},{oriY},{oriZ})";
+            string cartPointCmd = string.Format(
+                System.Globalization.CultureInfo.InvariantCulture,
+                "CARTPoint({0},{1},{2},{3},{4},{5},{6})",
+                pointIndex, posX, posY, posZ, oriX, oriY, oriZ);
             cartPointCommands.Add(cartPointCmd);
 
             float currentSpeed = speedSlider.value;
@@ -562,16 +565,32 @@ public class CartesianStateWriterNew : MonoBehaviour
     }
 
     // Formatea los valores de los InputFields en un string "x,y,z,rx,ry,rz"
+    // Convierte cualquier string numerico (usando punto o coma) a float usando InvariantCulture
+    private float ParseFloatInvariant(string input)
+    {
+        if (string.IsNullOrEmpty(input)) return 0f;
+        input = input.Replace(',', '.');
+        if (float.TryParse(input, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float result))
+        {
+            return result;
+        }
+        return 0f;
+    }
+
+    // Formatea los valores de los InputFields en un string "x,y,z,rx,ry,rz" usando siempre punto decimal
     private string FormCartesianCommand()
     {
-        float posX = float.Parse(posXInputField.text);
-        float posY = float.Parse(posYInputField.text);
-        float posZ = float.Parse(posZInputField.text);
-        float oriX = float.Parse(oriXInputField.text);
-        float oriY = float.Parse(oriYInputField.text);
-        float oriZ = float.Parse(oriZInputField.text);
+        float posX = ParseFloatInvariant(posXInputField.text);
+        float posY = ParseFloatInvariant(posYInputField.text);
+        float posZ = ParseFloatInvariant(posZInputField.text);
+        float oriX = ParseFloatInvariant(oriXInputField.text);
+        float oriY = ParseFloatInvariant(oriYInputField.text);
+        float oriZ = ParseFloatInvariant(oriZInputField.text);
 
-        return $"{posX},{posY},{posZ},{oriX},{oriY},{oriZ}";
+        return string.Format(
+            System.Globalization.CultureInfo.InvariantCulture,
+            "{0},{1},{2},{3},{4},{5}",
+            posX, posY, posZ, oriX, oriY, oriZ);
     }
     // Formatea para mostrar en pantalla (ej.: "X:100,Y:200,Z:300,Rx:10,Ry:20,Rz:30, Speed: 10, Pinza: [0,0,0,0]")
     private string FormatForDisplay(string cartesianCommand, float speed, float[] pinza)
