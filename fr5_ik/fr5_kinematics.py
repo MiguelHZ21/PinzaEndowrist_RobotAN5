@@ -132,7 +132,7 @@ D5 = 0.102      # offset de muneca    (URDF: joint j6, xyz z)
 # `--verificar` contra una lectura real ANTES de mover el robot. Si tu controlador
 # tiene un TCP configurado, d6 tiene que coincidir con ESE punto.
 D6_BRIDA = 0.100
-D6_TOOL_URDF = 0.267
+D6_TOOL_URDF = 0.457
 
 
 @dataclass(frozen=True)
@@ -143,7 +143,7 @@ class ParamsFR5:
     a3: float = A3
     d4: float = D4
     d5: float = D5
-    d6: float = D6_BRIDA
+    d6: float = D6_TOOL_URDF
 
     def tabla_dh(self) -> list[tuple[float, float, float]]:
         """[(d, a, alpha)] por junta, en orden 1..6."""

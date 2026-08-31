@@ -476,6 +476,11 @@ public class CartesianStateWriterNew : MonoBehaviour
                 string cartCmd = $"CARTPoint({reIndex},{pos[0]},{pos[1]},{pos[2]},{pos[3]},{pos[4]},{pos[5]})";
                 ros2CommandSender.SendCommand(cartCmd);
                 Debug.Log("Enviado CARTPoint: " + cartCmd);
+
+                // Publicar posición de la pinza para este punto en /endowrist_command
+                if (endoWristPositionsList.Count > i)
+                    ros2CommandSender.SendEndoWristCommand(endoWristPositionsList[i]);
+
                 yield return new WaitForSeconds(0.05f);
             }
 

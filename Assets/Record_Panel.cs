@@ -250,6 +250,11 @@ public class recordPanel : MonoBehaviour
 
                 ros2CommandSender.SendCommand(modifiedJointCommand);
                 Debug.Log($"Enviado: {modifiedJointCommand}");
+
+                // Publicar posición de la pinza para este punto en /endowrist_command
+                if (endoWristPositionsList.Count > i)
+                    ros2CommandSender.SendEndoWristCommand(endoWristPositionsList[i]);
+
                 yield return new WaitForSeconds(0.05f); // Pequeño delay entre comandos
             }
 
@@ -536,8 +541,16 @@ public class recordPanel : MonoBehaviour
                 
                 for (int i = 0; i < cartesianPositionsList.Count; i++)
                 {
-                    // Incluir la velocidad y el delay como parámetros adicionales en la línea de salida
-                    string line = string.Join(",", cartesianPositionsList[i]) + $",{speedList[i]},{delayList[i]}"; 
+                    // Incluir la velocidad, delay y los 4 valores de la pinza como parámetros adicionales
+                    float[] pinza = (endoWristPositionsList.Count > i) ? endoWristPositionsList[i] : new float[4];
+                    string line = string.Format(
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        "{0},{1},{2},{3},{4},{5},{6},{7},{8:F6},{9:F6},{10:F6},{11:F6}",
+                        cartesianPositionsList[i][0], cartesianPositionsList[i][1],
+                        cartesianPositionsList[i][2], cartesianPositionsList[i][3],
+                        cartesianPositionsList[i][4], cartesianPositionsList[i][5],
+                        speedList[i], delayList[i],
+                        pinza[0], pinza[1], pinza[2], pinza[3]);
                     writer.WriteLine(line); // Escribir cada línea en el archivo
                 }
             }

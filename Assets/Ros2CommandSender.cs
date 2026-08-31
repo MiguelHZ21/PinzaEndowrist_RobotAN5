@@ -21,6 +21,7 @@ public class Ros2CommandSender : MonoBehaviour
     public string commandTopic = "api_command"; // Tópico para enviar comandos a la API del robot
     public string inverseInputTopic = "input_cartesian_position"; // Tópico que envía posiciones a la cinemática inversa (cartesianas)
     public string directaInputTopic = "input_joint_position"; // Tópico que envía posiciones a la cinemática directa (articulares)
+    public string endoWristCommandTopic = "endowrist_command"; // Tópico para enviar posiciones de la pinza durante la reproducción
 
     private InputField commandInputField; // Asigna este campo en el Inspector
     private Button sendCommandButton;      // Asigna este botón en el Inspector
@@ -77,6 +78,11 @@ public class Ros2CommandSender : MonoBehaviour
         advertisedTopics[directaInputTopic] = directaInputTopic;
         Debug.Log("Tópico anunciado: " + directaInputTopic);
 
+        // Registrar el publicador para el tópico de posiciones de la pinza
+        rosSocket.Advertise<StringMsg>(endoWristCommandTopic);
+        advertisedTopics[endoWristCommandTopic] = endoWristCommandTopic;
+        Debug.Log("Tópico anunciado: " + endoWristCommandTopic);
+
         lastManualState = modeManualPanel.activeSelf;
         lastAutoState = modeAutoPanel.activeSelf;
     }
@@ -117,6 +123,19 @@ public class Ros2CommandSender : MonoBehaviour
     {
         Debug.Log("Preparando para enviar comando: " + command);
         rosSocket.Publish(commandTopic, new StringMsg { data = command });
+    }
+
+    // Método para publicar las posiciones de la pinza (shaft, wrist, jaw_dx, jaw_sx) al tópico /endowrist_command
+    // Formato del mensaje: "shaft,wrist,jaw_dx,jaw_sx"
+    public void SendEndoWristCommand(float[] pinzaPositions)
+    {
+        if (pinzaPositions == null || pinzaPositions.Length < 4) return;
+        string msg = string.Format(
+            System.Globalization.CultureInfo.InvariantCulture,
+            "{0:F6},{1:F6},{2:F6},{3:F6}",
+            pinzaPositions[0], pinzaPositions[1], pinzaPositions[2], pinzaPositions[3]);
+        rosSocket.Publish(endoWristCommandTopic, new StringMsg { data = msg });
+        Debug.Log("Pinza publicada en /" + endoWristCommandTopic + ": " + msg);
     }
 
     // Método para enviar un comando a un tópico específico

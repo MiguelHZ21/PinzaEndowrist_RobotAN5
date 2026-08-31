@@ -19,11 +19,12 @@ public class Sendtxt : MonoBehaviour
 {
     private RosSocket rosSocket; // Conexión con ROS
     private string filePathTopic = "/input_cartesian_path";
+    private string previewPathTopic = "/input_cartesian_path_preview";
 
-
-    public Button sendHelloButton; // Botón para enviar el mensaje con la ruta del archivo
+    public Button sendHelloButton; // Botón para enviar el mensaje con la ruta del archivo (Robot real)
     public Button resetButton; // Botón para solucionar errores
     public Button loadTxtButton; // Botón para abrir el explorador de archivos
+    public Button previewButton; // Botón para reproducir la trayectoria en Unity (preview visual)
 
     private string selectedFilePath = ""; // Ruta del archivo seleccionado
     private string initialPath = "/home/miguel/Interfaz AppDesigner AN5"; // Ruta inicial para el explorador de archivos
@@ -33,9 +34,10 @@ public class Sendtxt : MonoBehaviour
         // Conectar con el servidor ROSBridge
         rosSocket = new RosSocket(new RosSharp.RosBridgeClient.Protocols.WebSocketSharpProtocol("ws://localhost:9090"));
 
-        // Anunciar el tópico en ROS2 para recibir la ruta del archivo
+        // Anunciar los tópicos en ROS2
         rosSocket.Advertise<RosString>(filePathTopic);
-        UnityEngine.Debug.Log("Conectado y tópico anunciado: " + filePathTopic); // Mensaje en español
+        rosSocket.Advertise<RosString>(previewPathTopic);
+        UnityEngine.Debug.Log("Conectado y tópicos anunciados: " + filePathTopic + ", " + previewPathTopic);
 
         // Asignar la función al botón de cargar archivo
         if (loadTxtButton != null)
@@ -43,10 +45,16 @@ public class Sendtxt : MonoBehaviour
             loadTxtButton.onClick.AddListener(() => StartCoroutine(OpenFileBrowser()));
         }
 
-        // Asignar la función al botón de enviar mensaje
+        // Asignar la función al botón de enviar mensaje (Robot Real)
         if (sendHelloButton != null)
         {
             sendHelloButton.onClick.AddListener(() => PublishFilePath());
+        }
+
+        // Asignar la función al botón de reproducir/preview (Solo Unity)
+        if (previewButton != null)
+        {
+            previewButton.onClick.AddListener(() => PublishPreviewFilePath());
         }
     }
 
@@ -120,6 +128,21 @@ public class Sendtxt : MonoBehaviour
         else
         {
             UnityEngine.Debug.Log("No hay archivo seleccionado. Por favor, selecciona un archivo .txt antes de enviar."); // Mensaje en español
+        }
+    }
+
+    // Método que publica la ruta del archivo en el tópico de preview (solo animación en Unity)
+    private void PublishPreviewFilePath()
+    {
+        if (!string.IsNullOrEmpty(selectedFilePath))
+        {
+            RosString message = new RosString { data = selectedFilePath };
+            rosSocket.Publish(previewPathTopic, message);
+            UnityEngine.Debug.Log("Ruta del archivo enviada para PREVIEW: " + previewPathTopic);
+        }
+        else
+        {
+            UnityEngine.Debug.Log("No hay archivo seleccionado para reproducir.");
         }
     }
 

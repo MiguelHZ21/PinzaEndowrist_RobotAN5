@@ -103,9 +103,12 @@ class NodoIK(Node):
         self.pub_q = self.create_publisher(String, args.salida_topico, qos)
         self.pub_estado = self.create_publisher(String, "/ik_status", qos)
         self.pub_api = self.create_publisher(String, "/api_command", qos)
+        self.pub_endowrist = self.create_publisher(String, "/output_endowrist_path", qos)
+        self.pub_preview = self.create_publisher(String, "/preview_joint_position", qos)
 
         self.create_subscription(String, args.pose_topico, self.cb_pose, qos, callback_group=cbg)
         self.create_subscription(String, "/input_cartesian_path", self.cb_path, qos, callback_group=cbg)
+        self.create_subscription(String, "/input_cartesian_path_preview", self.cb_path_preview, qos, callback_group=cbg)
 
         self.processing_commands = False
 
@@ -178,10 +181,12 @@ class NodoIK(Node):
             v = [float(x) for x in msg.data.split(",")]
         except ValueError:
             self._estado(f"ERROR pose ilegible: {msg.data!r}", "error")
+            self.pub_q.publish(String(data="NaN,NaN,NaN,NaN,NaN,NaN"))
             return
         if len(v) != 6 or not all(math.isfinite(x) for x in v):
             self._estado(f"ERROR pose invalida (esperaba 6 numeros finitos): "
                          f"{msg.data!r}", "error")
+            self.pub_q.publish(String(data="NaN,NaN,NaN,NaN,NaN,NaN"))
             return
 
         x, y, z, rx, ry, rz = v
@@ -209,6 +214,7 @@ class NodoIK(Node):
                     f"RECHAZADA: hay {len(todas)} solucion(es) pero la mejor "
                     f"exige mover una junta {d:.1f} deg (limite "
                     f"{math.degrees(self.salto_max):.0f}) -> {msg.data}", "error")
+            self.pub_q.publish(String(data="NaN,NaN,NaN,NaN,NaN,NaN"))
             return
 
         grados = sol.grados()
@@ -261,6 +267,7 @@ class NodoIK(Node):
 
         valid_rows = []
         valid_joints = []
+        valid_pinza = []  # Lista de 4 valores de pinza por punto
         semilla_actual = self.q_actual if self.q_actual is not None else np.radians([0.0, -90.0, 90.0, -90.0, -90.0, 90.0])
 
         for idx, line in enumerate(data_lines, 1):
@@ -274,23 +281,31 @@ class NodoIK(Node):
                 x, y, z, rx, ry, rz = [float(p) for p in parts[:6]]
                 velocidad = float(parts[6])
                 control = float(parts[7])
+                # Columnas 8-11: valores de la pinza (shaft, wrist, jaw_dx, jaw_sx)
+                if len(parts) >= 12:
+                    pinza = [float(p) for p in parts[8:12]]
+                else:
+                    pinza = [0.0, 0.0, 0.0, 0.0]  # Compatibilidad con archivos sin pinza
             except ValueError:
                 self._estado(f"Error al parsear numeros en fila {idx}: {line}", "error")
                 return
 
-            # Validar limites cartesianos del robot
+            # Validar límites cartesianos (X, Y, Z)
             if not (x_lim[0] <= x <= x_lim[1] and y_lim[0] <= y <= y_lim[1] and z_lim[0] <= z <= z_lim[1]):
                 self._estado(f"Posicion fuera de limites en fila {idx}: X={x}, Y={y}, Z={z}", "error")
                 return
 
-            if not ((rx_lim_1[0] <= rx <= rx_lim_1[1]) or (rx_lim_2[0] <= rx <= rx_lim_2[1])):
+            # Validar orientación Rx
+            if not (-180.0 <= rx <= 180.0):
                 self._estado(f"Orientacion Rx fuera de limites en fila {idx}: Rx={rx}", "error")
                 return
 
             # Resolver IK
             T = pose_a_T(x / 1000.0, y / 1000.0, z / 1000.0,
                          math.radians(rx), math.radians(ry), math.radians(rz))
-            sol = ik_mejor(T, q_semilla=semilla_actual, params=self.params)
+            sol = ik_mejor(T, q_semilla=semilla_actual,
+                           salto_max=None if idx == 1 else self.salto_max,
+                           params=self.params)
 
             if sol is None:
                 self._estado(f"Sin solucion IK para fila {idx}: {x},{y},{z},{rx},{ry},{rz}", "error")
@@ -309,6 +324,7 @@ class NodoIK(Node):
             semilla_actual = sol.q
             valid_rows.append((x, y, z, rx, ry, rz, velocidad, control))
             valid_joints.append((q_deg, velocidad, control))
+            valid_pinza.append(pinza)
 
         self._estado(f"Archivo {file_path} validado correctamente ({len(valid_rows)} puntos). Header: {header}")
 
@@ -329,12 +345,23 @@ class NodoIK(Node):
                     q_str = ",".join(f"{g:.17f}" for g in q_deg)
                     f.write(f"{q_str},{vel:.2f},{ctrl:.2f}\n")
 
-            self._estado("Archivos python_position.txt y joint_python_position.txt generados. Ejecutando MoveL.py...")
+            # 3. Escribir endowrist_python_position.txt con los valores de la pinza
+            ew_file = os.path.join(save_dir, "endowrist_python_position.txt")
+            with open(ew_file, "w", encoding="utf-8") as f:
+                for pz in valid_pinza:
+                    f.write(f"{pz[0]},{pz[1]},{pz[2]},{pz[3]}\n")
 
-            # 3. Lanzar MoveL.py
+            self._estado("Archivos python_position.txt, joint_python_position.txt y endowrist_python_position.txt generados. Ejecutando MoveL.py...")
+
+            # 4. Lanzar MoveL.py con el workspace del robot correctamente cargado
             script_path = "/home/miguel/ros2_ws/src/code/code/MoveL.py"
-            cmd = [sys.executable, script_path]
-            proc = subprocess.Popen(cmd)
+            cmd = (
+                "bash -c '"
+                "source /opt/ros/humble/setup.bash && "
+                "source /home/miguel/ros2_ws/install/setup.bash && "
+                f"python3 {script_path}'"
+            )
+            proc = subprocess.Popen(cmd, shell=True)
             self._estado(f"MoveL.py lanzado (PID: {proc.pid})")
 
         elif header == "articular":
@@ -365,6 +392,7 @@ class NodoIK(Node):
                 # Enviar comandos de movimiento basados en el control
                 for i, (q_deg, vel, ctrl) in enumerate(batch_joints):
                     index = (i % max_index) + 1
+                    global_idx = start_idx + i
                     if ctrl != 0:
                         cmd_mov = f"MoveJ(JNT{index},{vel:.2f})"
                         self.pub_api.publish(String(data=cmd_mov))
@@ -372,11 +400,21 @@ class NodoIK(Node):
                         # Esperar a que el robot alcance la posicion objetivo
                         self.waitForRobotToReachPosition(np.radians(q_deg), tolerance_deg=0.5)
                         
+                        # Publicar posicion de la pinza sincronizada con el robot
+                        pz = valid_pinza[global_idx]
+                        self.pub_endowrist.publish(String(
+                            data=f"{pz[0]},{pz[1]},{pz[2]},{pz[3]}"))
+                        self._estado(f"Pinza punto {global_idx+1}: shaft={pz[0]:.4f}, wrist={pz[1]:.4f}, jaw_dx={pz[2]:.4f}, jaw_sx={pz[3]:.4f}")
+                        
                         self._estado(f"Esperando {ctrl} segundos antes del siguiente comando.")
                         time.sleep(ctrl)
                     else:
                         cmd_mov = f"SplinePTP(JNT{index},{vel:.2f})"
                         self.pub_api.publish(String(data=cmd_mov))
+                        # Publicar posicion de la pinza (en modo spline se publica inmediatamente)
+                        pz = valid_pinza[global_idx]
+                        self.pub_endowrist.publish(String(
+                            data=f"{pz[0]},{pz[1]},{pz[2]},{pz[3]}"))
                         time.sleep(0.05)
                 
                 time.sleep(0.05)
@@ -385,6 +423,112 @@ class NodoIK(Node):
                 self.pub_api.publish(String(data="SplineEnd()"))
 
             self._estado("Comandos de trayectoria articular enviados correctamente a /api_command.")
+
+    # ---------------- preview visual de trayectoria (solo Unity, NO robot fisico) ------
+    def cb_path_preview(self, msg: String) -> None:
+        if self.processing_commands:
+            self._estado("Ya se están procesando comandos. Ignorando preview.", "warn")
+            return
+
+        file_path = msg.data.strip()
+        if not os.path.exists(file_path):
+            self._estado(f"Archivo no encontrado: {file_path}", "error")
+            return
+
+        self.processing_commands = True
+        try:
+            self._reproducir_preview(file_path)
+        except Exception as e:
+            self._estado(f"Error en preview {file_path}: {e}", "error")
+        finally:
+            self.processing_commands = False
+
+    def _reproducir_preview(self, file_path: str) -> None:
+        """Reproduce visualmente la trayectoria en Unity sin enviar al robot fisico."""
+        with open(file_path, "r", encoding="utf-8") as f:
+            lines = [line.strip() for line in f if line.strip()]
+
+        if not lines:
+            self._estado(f"Archivo vacío: {file_path}", "error")
+            return
+
+        header = lines[0].lower()
+        data_lines = lines[1:]
+
+        valid_joints = []
+        valid_pinza = []
+        valid_delays = []
+        semilla_actual = self.q_actual if self.q_actual is not None else np.radians([0.0, -90.0, 90.0, -90.0, -90.0, 90.0])
+
+        # Fase 1: Validar y resolver IK para todos los puntos
+        for idx, line in enumerate(data_lines, 1):
+            parts = [x.strip() for x in line.split(",")]
+            if len(parts) < 8:
+                self._estado(f"Fila {idx} invalida (menos de 8 columnas): {line}", "error")
+                return
+
+            try:
+                x, y, z, rx, ry, rz = [float(p) for p in parts[:6]]
+                velocidad = float(parts[6])
+                control = float(parts[7])
+                if len(parts) >= 12:
+                    pinza = [float(p) for p in parts[8:12]]
+                else:
+                    pinza = [0.0, 0.0, 0.0, 0.0]
+            except ValueError:
+                self._estado(f"Error al parsear numeros en fila {idx}: {line}", "error")
+                return
+
+            x_lim = (-830.0, -320.0)
+            y_lim = (-500.0, 500.0)
+            z_lim = (0.0, 720.0)
+            rx_lim_1 = (-180.0, -20.0)
+            rx_lim_2 = (20.0, 180.0)
+
+            if not (x_lim[0] <= x <= x_lim[1] and y_lim[0] <= y <= y_lim[1] and z_lim[0] <= z <= z_lim[1]):
+                self._estado(f"Posición fuera de límites en fila {idx}: X={x}, Y={y}, Z={z}", "error")
+                return
+
+            if not ((rx_lim_1[0] <= rx <= rx_lim_1[1]) or (rx_lim_2[0] <= rx <= rx_lim_2[1])):
+                self._estado(f"Orientación Rx fuera de límites en fila {idx}: Rx={rx}", "error")
+                return
+
+            T = pose_a_T(x / 1000.0, y / 1000.0, z / 1000.0,
+                             math.radians(rx), math.radians(ry), math.radians(rz))
+            sol = ik_mejor(T, q_semilla=semilla_actual,
+                           salto_max=None if idx == 1 else self.salto_max,
+                           params=self.params)
+
+            if sol is None:
+                self._estado(f"Sin solucion IK para fila {idx}: {x},{y},{z},{rx},{ry},{rz}", "error")
+                return
+
+            q_deg = sol.grados()
+            semilla_actual = sol.q
+            valid_joints.append(q_deg)
+            valid_pinza.append(pinza)
+            # Usar el delay/control como pausa entre puntos; minimo 0.5s para ver la animacion
+            valid_delays.append(max(control, 0.5))
+
+        self._estado(f"Preview: {len(valid_joints)} puntos validados. Reproduciendo...")
+
+        # Fase 2: Publicar punto a punto con delays
+        for i, (q_deg, pinza, delay) in enumerate(zip(valid_joints, valid_pinza, valid_delays)):
+            # Publicar angulos articulares del robot
+            q_str = ",".join(f"{g:.6f}" for g in q_deg)
+            self.pub_preview.publish(String(data=q_str))
+
+            # Publicar posicion de la pinza
+            pz_str = f"{pinza[0]},{pinza[1]},{pinza[2]},{pinza[3]}"
+            self.pub_endowrist.publish(String(data=pz_str))
+
+            self._estado(f"Preview punto {i+1}/{len(valid_joints)}: "
+                         f"J=[{q_deg[0]:.1f},{q_deg[1]:.1f},{q_deg[2]:.1f},{q_deg[3]:.1f},{q_deg[4]:.1f},{q_deg[5]:.1f}]")
+
+            # Esperar antes del siguiente punto
+            time.sleep(delay)
+
+        self._estado(f"Preview completado: {len(valid_joints)} puntos reproducidos.")
 
 
 def main() -> None:

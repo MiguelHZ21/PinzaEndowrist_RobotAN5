@@ -21,7 +21,7 @@ public class MGD_Node : MonoBehaviour
         {-0.395, 0, 0, 0},
         {0, Math.PI / 2, 0.102, 0},
         {0, -Math.PI / 2, 0.102, 0},
-        {0, 0, 0.267, 0}
+        {0, 0, 0.457, 0}
     };
 
     private RosConnector rosConnector; // Referencia al RosConnector
@@ -108,24 +108,18 @@ public class MGD_Node : MonoBehaviour
         }
 
         // Extraer la posición del efector final y convertir a milímetros
-        double Px = Truncate(T_total[0, 3] * 1000, 2);
-        double Py = Truncate(T_total[1, 3] * 1000, 2);
-        double Pz = Truncate(T_total[2, 3] * 1000, 2);
+        double Px = Math.Round(T_total[0, 3] * 1000, 2);
+        double Py = Math.Round(T_total[1, 3] * 1000, 2);
+        double Pz = Math.Round(T_total[2, 3] * 1000, 2);
 
-        // Extraer la matriz de rotación 3x3 del efector final
-        double[,] rotation_matrix = new double[3, 3];
-        for (int i = 0; i < 3; i++)
-            for (int j = 0; j < 3; j++)
-                rotation_matrix[i, j] = T_total[i, j];
-
-        // Calcular rx, ry, rz usando la matriz de rotación y convertir a grados
-        double ry = Truncate(Math.Atan2(-rotation_matrix[2, 0],
-            Math.Sqrt(rotation_matrix[0, 0] * rotation_matrix[0, 0] + rotation_matrix[1, 0] * rotation_matrix[1, 0])) * 180 / Math.PI, 2);
-        double rx = Truncate(Math.Atan2(rotation_matrix[2, 1], rotation_matrix[2, 2]) * 180 / Math.PI, 2);
-        double rz = Truncate(Math.Atan2(rotation_matrix[1, 0], rotation_matrix[0, 0]) * 180 / Math.PI, 2);
+        // Extraer rx, ry, rz con manejo de Gimbal Lock
+        var (rx, ry, rz) = ExtractRPY(T_total);
 
         // Crear la cadena de texto de salida con la posición y los ángulos de rotación
-        string salida = $"{Px},{Py},{Pz},{rx},{ry},{rz}";
+        string salida = string.Format(
+            System.Globalization.CultureInfo.InvariantCulture,
+            "{0:F2},{1:F2},{2:F2},{3:F2},{4:F2},{5:F2}",
+            Px, Py, Pz, rx, ry, rz);
 
         // Publicar la salida en output_cartesian_position
         StringMsg outputMsg = new StringMsg();
@@ -149,7 +143,7 @@ public class MGD_Node : MonoBehaviour
             {-0.395, 0, 0, 0},
             {0, Math.PI / 2, 0.102, 0},
             {0, -Math.PI / 2, 0.102, 0},
-            {0, 0, 0.267, 0}
+            {0, 0, 0.457, 0}
         };
 
         double[] theta = new double[6];
@@ -166,18 +160,44 @@ public class MGD_Node : MonoBehaviour
             T = MatrixMultiplyStatic(T, DhMatrixStatic(a, alpha, d, th));
         }
 
-        double Px = Math.Floor(T[0, 3] * 1000 * 100) / 100;
-        double Py = Math.Floor(T[1, 3] * 1000 * 100) / 100;
-        double Pz = Math.Floor(T[2, 3] * 1000 * 100) / 100;
+        double Px = Math.Round(T[0, 3] * 1000, 2);
+        double Py = Math.Round(T[1, 3] * 1000, 2);
+        double Pz = Math.Round(T[2, 3] * 1000, 2);
 
-        double ry = Math.Floor(Math.Atan2(-T[2, 0], Math.Sqrt(T[0,0]*T[0,0] + T[1,0]*T[1,0])) * 180/Math.PI * 100) / 100;
-        double rx = Math.Floor(Math.Atan2(T[2, 1], T[2, 2]) * 180/Math.PI * 100) / 100;
-        double rz = Math.Floor(Math.Atan2(T[1, 0], T[0, 0]) * 180/Math.PI * 100) / 100;
+        // Extraer rx, ry, rz con manejo de Gimbal Lock
+        var (rx, ry, rz) = ExtractRPY(T);
 
         return string.Format(
             System.Globalization.CultureInfo.InvariantCulture,
             "{0:F2},{1:F2},{2:F2},{3:F2},{4:F2},{5:F2}",
             Px, Py, Pz, rx, ry, rz);
+    }
+
+    // Método estático para extraer RPY con manejo de Gimbal Lock (singularidad en Ry = ±90°)
+    public static (double rx, double ry, double rz) ExtractRPY(double[,] T)
+    {
+        double sy = -T[2, 0];
+        sy = Math.Max(-1.0, Math.Min(1.0, sy));
+        double ry_rad = Math.Asin(sy);
+
+        double rx_rad, rz_rad;
+
+        if (Math.Abs(Math.Cos(ry_rad)) < 1e-6) // Gimbal lock: ry = ±90°
+        {
+            rz_rad = 0.0;
+            rx_rad = Math.Atan2(-T[1, 2], T[1, 1]);
+        }
+        else
+        {
+            rz_rad = Math.Atan2(T[1, 0], T[0, 0]);
+            rx_rad = Math.Atan2(T[2, 1], T[2, 2]);
+        }
+
+        double rx = Math.Round(rx_rad * 180.0 / Math.PI, 2);
+        double ry = Math.Round(ry_rad * 180.0 / Math.PI, 2);
+        double rz = Math.Round(rz_rad * 180.0 / Math.PI, 2);
+
+        return (rx, ry, rz);
     }
 
     private static double[,] DhMatrixStatic(double a, double alpha, double d, double theta)

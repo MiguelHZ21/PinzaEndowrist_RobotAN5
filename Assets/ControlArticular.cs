@@ -537,26 +537,23 @@ public class ControlArticular : MonoBehaviour
 
             for (int i = 0; i < jointPositionsList.Count; i++)
             {
-                // Obtener los valores de la pinza para este punto
                 float[] pinza = (endoWristPositionsList.Count > i) ? endoWristPositionsList[i] : new float[4];
                 string pinzaStr = string.Format(
                     System.Globalization.CultureInfo.InvariantCulture,
                     "{0:F6},{1:F6},{2:F6},{3:F6}",
                     pinza[0], pinza[1], pinza[2], pinza[3]);
 
-                // Obtener el resultado de MGD asociado al punto
                 if (pointToDirectaResult.TryGetValue(i, out string mgdResult))
                 {
-                    // Escribir posicion, velocidad, delay y pinza
                     string line = $"{mgdResult},{speedList[i]},{delayList[i]},{pinzaStr}";
                     writer.WriteLine(line);
                 }
                 else
                 {
-                    // Si no hay resultado de MGD, indicar ausencia
-                    string line = $"Sin MGD,{speedList[i]},{delayList[i]},{pinzaStr}";
+                    // Si no está en el diccionario, calcular MGD directamente
+                    string mgdCalc = MGD_Node.ComputeMGD(jointPositionsList[i]);
+                    string line = $"{mgdCalc},{speedList[i]},{delayList[i]},{pinzaStr}";
                     writer.WriteLine(line);
-                    Debug.LogWarning($"No se encontró resultado de MGD para el punto {i}. Se guardará sin MGD.");
                 }
             }
         }
@@ -619,7 +616,14 @@ public class ControlArticular : MonoBehaviour
                 string jointCommand = $"JNTPoint({localIndex},{jointPositionsString})";
                 ros2CommandSender.SendCommand(jointCommand);
                 Debug.Log($"Enviado: {jointCommand}");
-                yield return new WaitForSeconds(0.05f); // Breve delay entre comandos
+
+                // Publicar posición de la pinza para este punto en /endowrist_command
+                if (endoWristPositionsList.Count > i)
+                    ros2CommandSender.SendEndoWristCommand(endoWristPositionsList[i]);
+
+                // Utilizar el delay especificado por el usuario para este punto, si está disponible
+                float pointDelay = (i < delayList.Count) ? delayList[i] : 0.05f;
+                yield return new WaitForSeconds(pointDelay); // Delay dinámico entre comandos
             }
 
             // Verificar si el modo delay está activo
