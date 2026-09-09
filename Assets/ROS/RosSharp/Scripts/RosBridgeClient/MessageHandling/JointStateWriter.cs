@@ -149,17 +149,19 @@ public class JointStateWriter : MonoBehaviour
                 targetRotation.y = initialRotation.y;
                 targetRotation.z = targetValue;
                 break;
-            case "Endo_mandibula_dx": // jaw_dx -> rota en eje Z (hinge axis negativo)
+            case "Endo_mandibula_dx": // jaw_dx
             case "jaw_dx":
-                targetRotation.x = initialRotation.x;
-                targetRotation.y = initialRotation.y;
-                targetRotation.z = targetValue * -1f; // Invertir porque ya se invirtió arriba
-                break;
-            case "Endo_mandibula_sx": // jaw_sx -> rota en eje Z (hinge axis positivo)
-            case "jaw_sx":
+            case "Jaw_Dx":
                 targetRotation.x = initialRotation.x;
                 targetRotation.y = initialRotation.y;
                 targetRotation.z = targetValue;
+                break;
+            case "Endo_mandibula_sx": // jaw_sx
+            case "jaw_sx":
+            case "Jaw_Sx":
+                targetRotation.x = initialRotation.x;
+                targetRotation.y = initialRotation.y;
+                targetRotation.z = targetValue * -1f;
                 break;
             default:
                 yield break; // Si no coincide con ningún caso, se sale de la coroutine.
@@ -204,8 +206,8 @@ public class JointStateWriter : MonoBehaviour
             startRotation.z = initialRotation.z;
         }
         else if (JointName == "Endo_muneca" || JointName == "wrist" || 
-                 JointName == "Endo_mandibula_dx" || JointName == "jaw_dx" || 
-                 JointName == "Endo_mandibula_sx" || JointName == "jaw_sx")
+                 JointName == "Endo_mandibula_dx" || JointName == "jaw_dx" || JointName == "Jaw_Dx" || 
+                 JointName == "Endo_mandibula_sx" || JointName == "jaw_sx" || JointName == "Jaw_Sx")
         {
             startRotation.x = initialRotation.x;
             startRotation.y = initialRotation.y;
@@ -296,15 +298,17 @@ public class JointStateWriter : MonoBehaviour
                 break;
             case "Endo_mandibula_dx": // jaw_dx
             case "jaw_dx":
-                targetRotation.x = initialRotation.x;
-                targetRotation.y = initialRotation.y;
-                targetRotation.z = targetValue * -1f;
-                break;
-            case "Endo_mandibula_sx": // jaw_sx
-            case "jaw_sx":
+            case "Jaw_Dx":
                 targetRotation.x = initialRotation.x;
                 targetRotation.y = initialRotation.y;
                 targetRotation.z = targetValue;
+                break;
+            case "Endo_mandibula_sx": // jaw_sx
+            case "jaw_sx":
+            case "Jaw_Sx":
+                targetRotation.x = initialRotation.x;
+                targetRotation.y = initialRotation.y;
+                targetRotation.z = targetValue * -1f;
                 break;
             default:
                 return; // Si el nombre de la articulación no coincide, no se aplica ningún cambio.
@@ -343,8 +347,10 @@ public class JointStateWriter : MonoBehaviour
             case "wrist":
             case "Endo_mandibula_dx":
             case "jaw_dx":
+            case "Jaw_Dx":
             case "Endo_mandibula_sx":
             case "jaw_sx":
+            case "Jaw_Sx":
                 return rot.z;
             default:
                 return 0f;
@@ -394,10 +400,14 @@ public class JointStateWriter : MonoBehaviour
                 break;
             case "Endo_muneca":
             case "wrist":
+                rawAngle = rot.z;
+                break;
             case "Endo_mandibula_dx":
             case "jaw_dx":
+            case "Jaw_Dx":
             case "Endo_mandibula_sx":
             case "jaw_sx":
+            case "Jaw_Sx":
                 rawAngle = rot.z;
                 break;
             default:

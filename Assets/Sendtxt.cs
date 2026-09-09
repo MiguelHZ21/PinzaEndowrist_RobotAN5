@@ -27,7 +27,7 @@ public class Sendtxt : MonoBehaviour
     public Button previewButton; // Botón para reproducir la trayectoria en Unity (preview visual)
 
     private string selectedFilePath = ""; // Ruta del archivo seleccionado
-    private string initialPath = "/home/miguel/Interfaz AppDesigner AN5"; // Ruta inicial para el explorador de archivos
+    private string initialPath = "/home/miguel/Interfaz Unity AN5"; // Ruta inicial para el explorador de archivos
 
     void Start()
     {

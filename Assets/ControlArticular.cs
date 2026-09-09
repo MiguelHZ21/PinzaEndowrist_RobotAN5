@@ -73,7 +73,7 @@ public class ControlArticular : MonoBehaviour
     private string pendingMGDMessage = null;
 
     // Ruta donde se guardará el archivo de posiciones
-    private string savePath = "/home/miguel/Interfaz AppDesigner AN5";
+    private string savePath = "/home/miguel/Interfaz Unity AN5";
 
     void Start()
     {

@@ -32,24 +32,32 @@ public class EndoWristSubscriber : UnitySubscriber<JointState>
             switch (jointName)
             {
                 case "shaft":
+                case "Shaft":
+                case "Endo_eje":
                     if (shaft != null)
                         shaft.Write(position);
                     
                     break;
 
                 case "wrist":
+                case "Wrist":
+                case "Endo_muneca":
                     if (wrist != null)
                         wrist.Write(position);
                     
                     break;
 
                 case "jaw_dx":
+                case "Jaw_Dx":
+                case "Endo_mandibula_dx":
                     if (jawDx != null)
                         jawDx.Write(position);
                 
                     break;
 
                 case "jaw_sx":
+                case "Jaw_Sx":
+                case "Endo_mandibula_sx":
                     if (jawSx != null)
                         jawSx.Write(position);
                     

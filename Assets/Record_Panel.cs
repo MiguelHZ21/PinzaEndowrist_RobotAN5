@@ -49,7 +49,7 @@ public class recordPanel : MonoBehaviour
     private float[] lastEndoWristPositions = new float[4]; // Última posición de pinza para evitar duplicados
     private float speed = 10f;                    // Velocidad predeterminada
     private bool isFirstPoint = true;             // Verificar si es el primer punto grabado
-    private string savePath = "/home/miguel/Interfaz AppDesigner AN5"; // Ruta donde se guardará el archivo txt
+    private string savePath = "/home/miguel/Interfaz Unity AN5"; // Ruta donde se guardará el archivo txt
 
     void Start()
     {

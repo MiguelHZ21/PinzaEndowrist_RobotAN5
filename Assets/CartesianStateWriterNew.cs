@@ -75,7 +75,7 @@ public class CartesianStateWriterNew : MonoBehaviour
     private bool isListening = true;
     private bool isManualEditing = false;
 
-    private string savePath = "/home/miguel/Interfaz AppDesigner AN5"; // Ruta de guardado
+    private string savePath = "/home/miguel/Interfaz Unity AN5"; // Ruta de guardado
 
     void Start()
     {
