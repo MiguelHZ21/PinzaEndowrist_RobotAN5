@@ -353,7 +353,7 @@ class NodoIK(Node):
 
         self._estado(f"Archivo {file_path} validado correctamente ({len(valid_rows)} puntos). Header: {header}")
 
-        save_dir = "/home/miguel/Interfaz AppDesigner AN5"
+        save_dir = "/home/miguel/Interfaz Unity AN5"
         os.makedirs(save_dir, exist_ok=True)
 
         if header == "cartesiano":
