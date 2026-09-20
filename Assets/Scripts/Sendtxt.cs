@@ -1,6 +1,8 @@
 /*******************
 Autores:    Angel Garzon Sarzosa (ahgarzon@unicauca.edu.co)
-            Jhoan Simei Sarria (simei@unicauca.edu.co)                   
+            Jhoan Simei Sarria (simei@unicauca.edu.co)
+Modificado: Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+            Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
 *******************/
 
 using UnityEngine;
@@ -15,19 +17,26 @@ using System.Collections.Generic;
 // Alias para diferenciar entre RosSharp.RosBridgeClient.MessageTypes.Std.String y System.String
 using RosString = RosSharp.RosBridgeClient.MessageTypes.Std.String;
 
+/// <summary>
+/// Gestiona la carga de archivos TXT con trayectorias y su envío a ROS 2.
+/// Permite previsualizar la trayectoria en la simulación o enviarla al robot real.
+/// </summary>
 public class Sendtxt : MonoBehaviour
 {
-    private RosSocket rosSocket; // Conexión con ROS
+    [Header("Enlaces ROS 2")]
+    private RosSocket rosSocket; 
     private string filePathTopic = "/input_cartesian_path";
     private string previewPathTopic = "/input_cartesian_path_preview";
 
-    public Button sendHelloButton; // Botón para enviar el mensaje con la ruta del archivo (Robot real)
-    public Button resetButton; // Botón para solucionar errores
-    public Button loadTxtButton; // Botón para abrir el explorador de archivos
-    public Button previewButton; // Botón para reproducir la trayectoria en Unity (preview visual)
+    [Header("UI - Controles de Archivo")]
+    public Button loadTxtButton; 
+    public Button previewButton; 
+    public Button sendHelloButton; 
+    public Button resetButton; 
 
-    private string selectedFilePath = ""; // Ruta del archivo seleccionado
-    private string initialPath = "/home/miguel/Interfaz Unity AN5"; // Ruta inicial para el explorador de archivos
+    // --- Estado Interno ---
+    private string selectedFilePath = ""; 
+    private string initialPath = "/home/miguel/Interfaz Unity AN5"; // TODO: Migrar a Application.dataPath
 
     [Header("Seguridad - Aviso UI")]
     [Tooltip("Asigna aquí tu caja de texto para mostrar los avisos de seguridad.")]

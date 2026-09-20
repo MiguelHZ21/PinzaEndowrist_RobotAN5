@@ -1,16 +1,26 @@
+/*******************
+Autores:    Angel Garzon Sarzosa (ahgarzon@unicauca.edu.co)
+            Jhoan Simei Sarria (simei@unicauca.edu.co)
+Modificado: Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+            Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
+*******************/
 using UnityEngine;
 using RosSharp.RosBridgeClient;
 using RosSharp.RosBridgeClient.MessageTypes.Sensor;
 
+/// <summary>
+/// Suscriptor para el tópico /endowrist (sensor_msgs/JointState).
+/// Actualiza la posición de las articulaciones de la pinza virtual en tiempo real
+/// en función de la información proveniente de ROS 2.
+/// </summary>
 public class EndoWristSubscriber : UnitySubscriber<JointState>
 {
-    [Header("JointStateWriter de cada articulación")]
+    [Header("Componentes Robot URDF")]
+    [Tooltip("Escritores de estado para actualizar la rotación de cada articulación de la pinza.")]
     public JointStateWriter shaft;
     public JointStateWriter wrist;
     public JointStateWriter jawDx;
     public JointStateWriter jawSx;
-
-    
 
     protected override void Start()
     {

@@ -1,22 +1,37 @@
+/*******************
+Autores:    Angel Garzon Sarzosa (ahgarzon@unicauca.edu.co)
+            Jhoan Simei Sarria (simei@unicauca.edu.co)
+Modificado: Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+            Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
+*******************/
 using UnityEngine;
 using UnityEngine.UI;
 using RosSharp.RosBridgeClient;
 
+/// <summary>
+/// Gestiona la recolección visual y envío de las posiciones del instrumento quirúrgico (EndoWrist).
+/// Vincula los sliders de la interfaz con los escritores de estado URDF.
+/// </summary>
 public class ControlPinza : MonoBehaviour
 {
     [Header("Sliders del EndoWrist")]
-    public Slider sliderShaft;    // SliderArt1 -> shaft (Endo_eje)
-    public Slider sliderWrist;    // SliderArt2 -> wrist (Endo_muneca)
-    public Slider sliderJawDx;    // SliderArt3 -> jaw_dx (Endo_mandibula_dx)
-    public Slider sliderJawSx;    // SliderArt4 -> jaw_sx (Endo_mandibula_sx)
+    [Tooltip("SliderArt1 -> shaft (Endo_eje)")]
+    public Slider sliderShaft;
+    [Tooltip("SliderArt2 -> wrist (Endo_muneca)")]
+    public Slider sliderWrist;
+    [Tooltip("SliderArt3 -> jaw_dx (Endo_mandibula_dx)")]
+    public Slider sliderJawDx;
+    [Tooltip("SliderArt4 -> jaw_sx (Endo_mandibula_sx)")]
+    public Slider sliderJawSx;
 
-    [Header("JointStateWriter del EndoWrist")]
+    [Header("Componentes Robot URDF")]
+    [Tooltip("Escritores de estado para actualizar la rotación de la pinza virtual.")]
     public JointStateWriter writerShaft;
     public JointStateWriter writerWrist;
     public JointStateWriter writerJawDx;
     public JointStateWriter writerJawSx;
 
-    [Header("Textos de valor EndoWrist (opcional)")]
+    [Header("Textos de valor EndoWrist")]
     public TMPro.TextMeshProUGUI textValueShaft;
     public TMPro.TextMeshProUGUI textValueWrist;
     public TMPro.TextMeshProUGUI textValueJawDx;

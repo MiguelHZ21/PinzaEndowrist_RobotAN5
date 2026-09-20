@@ -1,6 +1,8 @@
 /*******************
 Autores:    Angel Garzon Sarzosa (ahgarzon@unicauca.edu.co)
-            Jhoan Simei Sarria (simei@unicauca.edu.co)                   
+            Jhoan Simei Sarria (simei@unicauca.edu.co)
+Modificado: Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+            Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
 *******************/
 
 using UnityEngine;
@@ -13,26 +15,36 @@ using System.Collections.Generic;
 // Alias para diferenciar entre RosSharp.RosBridgeClient.MessageTypes.Std.String y System.String
 using StringMsg = RosSharp.RosBridgeClient.MessageTypes.Std.String;
 
+/// <summary>
+/// Nodo publicador central hacia ROS 2. 
+/// Encargado de enrutar comandos de movimiento a la API, publicar posiciones para cinemática inversa/directa
+/// y coordinar comandos de Paro (Stop) y cambio de Modos (Manual/Automático).
+/// </summary>
 public class Ros2CommandSender : MonoBehaviour
 {
+    [Header("Enlaces ROS 2")]
     private RosSocket rosSocket;
     private Dictionary<string, string> advertisedTopics = new Dictionary<string, string>();
 
-    public string commandTopic = "api_command"; // Tópico para enviar comandos a la API del robot
-    public string inverseInputTopic = "input_cartesian_position"; // Tópico que envía posiciones a la cinemática inversa (cartesianas)
-    public string directaInputTopic = "input_joint_position"; // Tópico que envía posiciones a la cinemática directa (articulares)
-    public string endoWristCommandTopic = "endowrist_command"; // Tópico para enviar posiciones de la pinza durante la reproducción
+    [Header("Tópicos")]
+    public string commandTopic = "api_command"; 
+    public string inverseInputTopic = "input_cartesian_position"; 
+    public string directaInputTopic = "input_joint_position"; 
+    public string endoWristCommandTopic = "endowrist_command"; 
 
-    private InputField commandInputField; // Asigna este campo en el Inspector
-    private Button sendCommandButton;      // Asigna este botón en el Inspector
-    public Button stopCommandButton;         // Botón original para stop
-    public Button duplicateStopCommandButton; // Botón duplicado para stop
+    [Header("UI - Controles de Paro/Comando")]
+    private InputField commandInputField; 
+    private Button sendCommandButton;     
+    public Button stopCommandButton;         
+    public Button duplicateStopCommandButton; 
 
-    public GameObject modeManualPanel; // Panel para modo manual, asigna en el Inspector
-    public GameObject modeAutoPanel;   // Panel para modo automático, asigna en el Inspector
+    [Header("UI - Paneles de Modo")]
+    public GameObject modeManualPanel; 
+    public GameObject modeAutoPanel;   
 
-    private bool lastManualState; // Estado anterior del panel manual
-    private bool lastAutoState;   // Estado anterior del panel automático
+    // --- Estado Interno ---
+    private bool lastManualState; 
+    private bool lastAutoState;   
 
     void Start()
     {

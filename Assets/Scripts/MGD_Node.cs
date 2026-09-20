@@ -1,6 +1,8 @@
 /*******************
 Autores:    Angel Garzon Sarzosa (ahgarzon@unicauca.edu.co)
-            Jhoan Simei Sarria (simei@unicauca.edu.co)                   
+            Jhoan Simei Sarria (simei@unicauca.edu.co)
+Modificado: Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+            Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
 *******************/
 
 using UnityEngine;
@@ -12,10 +14,17 @@ using System.Collections;
 // Alias para diferenciar entre RosSharp.RosBridgeClient.MessageTypes.Std.String y System.String
 using StringMsg = RosSharp.RosBridgeClient.MessageTypes.Std.String;
 
+/// <summary>
+/// Nodo de cálculo local de Cinemática Directa (MGD - Modelo Geométrico Directo).
+/// Calcula la posición cartesiana (XYZ, RxRyRz) a partir de ángulos articulares
+/// usando parámetros Denavit-Hartenberg locales y lo publica en ROS.
+/// </summary>
 public class MGD_Node : MonoBehaviour
 {
+    [Header("Cinemática")]
+    [Tooltip("Matriz de parámetros DH locales del robot FR5")]
     // Parámetros DH del FR5
-    double[,] DH_params = new double[,] {
+    private double[,] DH_params = new double[,] {
         {0, Math.PI / 2, 0.152, 0},
         {-0.425, 0, 0, 0},
         {-0.395, 0, 0, 0},
@@ -24,14 +33,20 @@ public class MGD_Node : MonoBehaviour
         {0, 0, 0.457, 0}
     };
 
-    private RosConnector rosConnector; // Referencia al RosConnector
-    private RosSocket rosSocket; // Referencia al RosSocket
+    [Header("Enlaces ROS 2")]
+    private RosConnector rosConnector;
+    private RosSocket rosSocket;
 
-    private string inputTopic = "input_joint_position"; // topico que publica en la cinematica directa 
-    private string outputTopic = "output_cartesian_position"; // topico que recibe el resultado de la cinematica directa en posciones cartesianas 
+    [Header("Tópicos")]
+    [Tooltip("Tópico para recibir los ángulos de los motores.")]
+    private string inputTopic = "input_joint_position"; 
+    
+    [Tooltip("Tópico donde se publicará el resultado cartesiano.")]
+    private string outputTopic = "output_cartesian_position"; 
 
-    private string inputTopicId; // ID de suscripción al tópico de entrada
-    private string outputTopicId; // ID de publicador al tópico de salida
+    // --- Identificadores de ROS ---
+    private string inputTopicId; 
+    private string outputTopicId;
 
     void Start()
     {

@@ -1,6 +1,8 @@
 /*******************
 Autores:    Angel Garzon Sarzosa (ahgarzon@unicauca.edu.co)
-            Jhoan Simei Sarria (simei@unicauca.edu.co)                   
+            Jhoan Simei Sarria (simei@unicauca.edu.co)
+Modificado: Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+            Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
 *******************/
 
 using System;
@@ -11,9 +13,14 @@ using RosSharp.RosBridgeClient.MessageTypes.Std;
 // Alias para diferenciar entre RosSharp.RosBridgeClient.MessageTypes.Std.String y System.String
 using RosString = RosSharp.RosBridgeClient.MessageTypes.Std.String;
 
+/// <summary>
+/// Suscriptor para resultados de cinemática directa enviados por el MGD_Node.
+/// Tópico: /output_cartesian_position
+/// </summary>
 public class MGD_Subscriber : UnitySubscriber<RosString>
 {
-    public Action<string> OnInverseKinematicsResultReceived; // Evento para notificar al ControlArticular
+    /// <summary>Evento para notificar a ControlArticular sobre la nueva posición cartesiana.</summary>
+    public Action<string> OnInverseKinematicsResultReceived;
 
     // Inicializa la suscripción al tópico ROS correspondiente
     protected override void Start()

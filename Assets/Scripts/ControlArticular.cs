@@ -1,6 +1,8 @@
 /*******************
 Autores:    Angel Garzon Sarzosa (ahgarzon@unicauca.edu.co)
-            Jhoan Simei Sarria (simei@unicauca.edu.co)                   
+            Jhoan Simei Sarria (simei@unicauca.edu.co)
+Modificado: Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+            Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
 *******************/
 
 using System;
@@ -11,73 +13,75 @@ using UnityEngine.UI;
 using RosSharp.RosBridgeClient;
 using System.Collections;
 
+/// <summary>
+/// Gestiona la recolección, validación y envío de trayectorias articulares (punto a punto).
+/// Permite manipular los ángulos de los motores manualmente mediante sliders y envía
+/// secuencias de movimiento fluido al robot físico a través de ROS 2.
+/// </summary>
 public class ControlArticular : MonoBehaviour
 {
-    // Referencias a los sliders de las articulaciones
+    [Header("UI - Controles de Motores (Sliders)")]
     public Slider[] jointSliders;
-    
-    // Campos de entrada para mostrar e ingresar valores de los sliders
     public InputField[] jointValueInputs;
-    
-    // Botones para aumentar y disminuir el valor de cada articulación
     public Button[] increaseButtons;
     public Button[] decreaseButtons;
 
-    // Slider y campo de entrada para controlar la velocidad
+    [Header("UI - Control de Velocidad")]
     public Slider speedSlider;
     public InputField speedValueInput;
-    
-    // Botones para ajustar la velocidad
     public Button increaseSpeedButton;
     public Button decreaseSpeedButton;
 
-    // Campo de entrada para el tiempo de espera en segundos
+    [Header("UI - Controles de Trayectoria")]
+    [Tooltip("Tiempo de espera en segundos asociado al comando de movimiento.")]
     public InputField delayInputField;
     
-    // Botones para enviar, añadir, eliminar y guardar puntos
     public Button sendButton;
     public Button addButton;
     public Button removeButton;
     public Button saveTxtButton;
-    
-    // Texto para mostrar los puntos añadidos
     public Text coordinatesDisplay;
     
-    // Referencias a componentes de ROS2 y suscriptores
+    [Header("Enlaces ROS 2")]
     public Ros2CommandSender ros2CommandSender;
     public JointPositionSubscriber jointPositionSubscriber;
-    public JointStateWriter[] jointStateWriters;
-    public MGD_Subscriber MGD_Subscriber; // Suscriptor para resultados de cinemática directa
-    public EndoWristSubscriber endoWristSubscriber; // Suscriptor para la pinza
+    public MGD_Subscriber MGD_Subscriber;
+    public EndoWristSubscriber endoWristSubscriber;
 
-    // Variables para almacenar estados y configuraciones
+    [Header("Componentes Robot URDF")]
+    [Tooltip("Escritores de estado para actualizar la rotación del robot virtual.")]
+    public JointStateWriter[] jointStateWriters;
+
+    [Header("Seguridad")]
+    [Tooltip("Asigna aquí tu caja de texto para mostrar los avisos de seguridad (no contamina la lista de puntos).")]
+    public Text safetyWarningText;
+
+    // --- Estado Interno de Trayectoria ---
+
     private float[] jointPositions = new float[6];
-    private float speed = 10f; // Velocidad por defecto
-    private float delay = 0f; // Tiempo de espera por defecto
+    private float speed = 10f;
+    private float delay = 0f;
     private bool isArticularModeActive = false;
     
-    // Listas para almacenar posiciones articulares, pinza, velocidades y delays
+    /// <summary>Lista de puntos articulares (en grados) ingresados por el usuario.</summary>
     private List<float[]> jointPositionsList = new List<float[]>();
+    
+    /// <summary>Posiciones de la herramienta EndoWrist asociadas a cada punto.</summary>
     private List<float[]> endoWristPositionsList = new List<float[]>();
+    
     private List<float> speedList = new List<float>();
     private List<float> delayList = new List<float>();
     
-    // Diccionario para almacenar resultados de cinemática directa asociados a puntos
+    /// <summary>Resultados de cinemática directa (XYZ, RxRyRz) asociados a cada punto agregado.</summary>
     private Dictionary<int, string> pointToDirectaResult = new Dictionary<int, string>();
     
-    // Cola para índices pendientes de recibir resultados de MGD
-    private Queue<int> pendingMGDIndices = new Queue<int>();
+    // --- Sincronización ROS a Unity (Hilos) ---
 
-    // Cola segura para recibir resultados MGD desde el hilo de ROS al hilo principal
+    private Queue<int> pendingMGDIndices = new Queue<int>();
     private bool hasPendingMGD = false;
     private string pendingMGDMessage = null;
 
-    // Ruta donde se guardará el archivo de posiciones
-    private string savePath = "/home/miguel/Interfaz Unity AN5";
-
-    [Header("Seguridad - Aviso UI")]
-    [Tooltip("Asigna aquí tu caja de texto para mostrar los avisos de seguridad (no contamina la lista de puntos).")]
-    public Text safetyWarningText;
+    private string savePath = "/home/miguel/Interfaz Unity AN5"; // TODO: Reemplazar con Application.dataPath
 
 
 
@@ -550,7 +554,7 @@ public class ControlArticular : MonoBehaviour
     // Guardar las posiciones en un archivo de texto
     private void GuardarEnTxt()
     {
-        string filePath = Path.Combine(savePath, "unitypositions.txt"); // Ruta completa del archivo
+        string filePath = Path.Combine(savePath, "ArticularPoints.txt"); // Ruta completa del archivo
 
         using (StreamWriter writer = new StreamWriter(filePath))
         {

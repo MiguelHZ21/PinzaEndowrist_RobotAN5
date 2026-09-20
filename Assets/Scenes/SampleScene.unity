@@ -16223,7 +16223,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -110, y: 376}
+  m_AnchoredPosition: {x: -110, y: 220}
   m_SizeDelta: {x: 160, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &932980331
@@ -25975,6 +25975,7 @@ MonoBehaviour:
   ikSubscriber: {fileID: 2058056367}
   cartesianPositionSubscriber: {fileID: 2058056366}
   jointPositionSubscriber: {fileID: 2058056365}
+  endoWristSubscriber: {fileID: 2058056371}
   jointStateWriters:
   - {fileID: 767615278}
   - {fileID: 2060860089}
@@ -25982,7 +25983,6 @@ MonoBehaviour:
   - {fileID: 1936002625}
   - {fileID: 1575901371}
   - {fileID: 221820830}
-  endoWristSubscriber: {fileID: 2058056371}
   safetyWarningText: {fileID: 932361725}
 --- !u!114 &1490393092
 MonoBehaviour:
@@ -26036,6 +26036,8 @@ MonoBehaviour:
   coordinatesDisplay: {fileID: 444342717}
   ros2CommandSender: {fileID: 1490393088}
   jointPositionSubscriber: {fileID: 2058056365}
+  MGD_Subscriber: {fileID: 2058056369}
+  endoWristSubscriber: {fileID: 2058056371}
   jointStateWriters:
   - {fileID: 767615278}
   - {fileID: 2060860089}
@@ -26043,8 +26045,6 @@ MonoBehaviour:
   - {fileID: 1936002625}
   - {fileID: 1575901371}
   - {fileID: 221820830}
-  MGD_Subscriber: {fileID: 2058056369}
-  endoWristSubscriber: {fileID: 2058056371}
   safetyWarningText: {fileID: 932361725}
 --- !u!114 &1490393094
 MonoBehaviour:
@@ -26076,10 +26076,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 051d9d3ac1772b724a25f68058ae5948, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  sendHelloButton: {fileID: 113046855}
-  resetButton: {fileID: 681639979}
   loadTxtButton: {fileID: 1331816774}
   previewButton: {fileID: 1874466805}
+  sendHelloButton: {fileID: 113046855}
+  resetButton: {fileID: 681639979}
   safetyWarningText: {fileID: 932361725}
 --- !u!1 &1499908805
 GameObject:
@@ -32785,10 +32785,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 051d9d3ac1772b724a25f68058ae5948, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  sendHelloButton: {fileID: 0}
-  resetButton: {fileID: 0}
   loadTxtButton: {fileID: 0}
   previewButton: {fileID: 0}
+  sendHelloButton: {fileID: 0}
+  resetButton: {fileID: 0}
   safetyWarningText: {fileID: 0}
 --- !u!114 &1874466805
 MonoBehaviour:
@@ -36712,14 +36712,14 @@ MonoBehaviour:
   clearButton: {fileID: 49277539}
   saveTxtButton: {fileID: 1435154946}
   grabarDisplay: {fileID: 1684111311}
-  ros2CommandSender: {fileID: 1490393088}
-  jointPositionSubscriber: {fileID: 2058056365}
-  cartesianPositionSubscriber: {fileID: 2058056366}
-  endoWristSubscriber: {fileID: 0}
   speedSlider: {fileID: 1461250086}
   speedInputField: {fileID: 642558075}
   increaseSpeedButton: {fileID: 187628203}
   decreaseSpeedButton: {fileID: 1741017757}
+  ros2CommandSender: {fileID: 1490393088}
+  jointPositionSubscriber: {fileID: 2058056365}
+  cartesianPositionSubscriber: {fileID: 2058056366}
+  endoWristSubscriber: {fileID: 0}
   safetyWarningText: {fileID: 932361725}
 --- !u!114 &2058056369
 MonoBehaviour:

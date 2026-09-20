@@ -1,8 +1,8 @@
 /*******************
-Suscriptor que recibe posiciones de la pinza (EndoWrist) publicadas
-por el nodo de Python al reproducir una trayectoria cargada desde TXT.
-Tópico: /output_endowrist_path  (std_msgs/String)
-Formato del mensaje: "shaft,wrist,jaw_dx,jaw_sx" (4 valores float en radianes)
+Autores:    Angel Garzon Sarzosa (ahgarzon@unicauca.edu.co)
+            Jhoan Simei Sarria (simei@unicauca.edu.co)
+Modificado: Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+            Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
 *******************/
 
 using UnityEngine;
@@ -12,20 +12,27 @@ using System;
 // Alias para diferenciar entre RosSharp y System
 using StringMsg = RosSharp.RosBridgeClient.MessageTypes.Std.String;
 
+/// <summary>
+/// Suscriptor que recibe posiciones de la pinza (EndoWrist) publicadas
+/// por el nodo de Python al reproducir una trayectoria cargada desde TXT.
+/// Tópico: /output_endowrist_path (std_msgs/String).
+/// </summary>
 public class EndoWristPathSubscriber : MonoBehaviour
 {
-    [Header("JointStateWriter de cada articulación de la pinza")]
+    [Header("Componentes Robot URDF")]
+    [Tooltip("Escritores de estado para actualizar la rotación de cada articulación de la pinza.")]
     public JointStateWriter shaft;
     public JointStateWriter wrist;
     public JointStateWriter jawDx;
     public JointStateWriter jawSx;
 
+    // --- Enlaces ROS 2 ---
     private RosConnector rosConnector;
     private RosSocket rosSocket;
     private string topicId;
     private string topic = "/output_endowrist_path";
 
-    // Cola para pasar datos del hilo ROS al hilo principal de Unity
+    // --- Sincronización ROS a Unity (Hilos) ---
     private readonly object lockObj = new object();
     private float[] pendingValues = null;
 

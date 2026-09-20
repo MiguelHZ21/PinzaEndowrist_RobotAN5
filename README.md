@@ -70,9 +70,4 @@ Contiene la aplicación de interfaz gráfica desarrollada en Unity.
 3. Configura la dirección IP del robot en la interfaz si es necesario.
 4. Usa los controles para mover el robot y probar la pinza.
 
-## 👥 Colaboración
 
-Este proyecto ha sido desarrollado por:
-- **Miguel Ángel Serrano**
-
-Para contribuciones o reportar problemas, por favor usar los canales deissue tracking del repositorio.

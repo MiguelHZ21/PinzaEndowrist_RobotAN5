@@ -13,14 +13,20 @@ using RosSharp.RosBridgeClient;
 // Alias para el tipo de mensaje ROS estándar String
 using RosString = RosSharp.RosBridgeClient.MessageTypes.Std.String;
 
+/// <summary>
+/// Suscriptor para el tópico /current_joint_position.
+/// Recibe las posiciones actuales de las articulaciones del robot real
+/// y las propaga a la simulación URDF y a la interfaz de usuario.
+/// </summary>
 public class JointPositionSubscriber : UnitySubscriber<RosString>
 {
+    [Header("Componentes Robot URDF")]
+    [Tooltip("Escritores de estado para actualizar la rotación del robot virtual.")]
     public JointStateWriter[] jointStateWriters;
 
+    [Header("Estado Interno")]
     private bool isUpdating = true;
-
     public event Action<float[]> OnJointPositionsUpdated;
-
     private float[] lastPositions;
 
     [Header("Modo Freeze")]

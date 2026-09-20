@@ -1,23 +1,30 @@
 /*******************
 Autores:    Angel Garzon Sarzosa (ahgarzon@unicauca.edu.co)
             Jhoan Simei Sarria (simei@unicauca.edu.co)
+Modificado: Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+            Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
 *******************/
 using UnityEngine;
 using RosSharp.RosBridgeClient;
 using RosString = RosSharp.RosBridgeClient.MessageTypes.Std.String;
 
+/// <summary>
 /// Suscriptor para /current_cartesian_position, que recibe x,y,z,rx,ry,rz
 /// y guarda la última posición en un array float[6]. Además, activa o desactiva
 /// la señal de interpolación según se pause o reanude la lectura del tópico.
+/// </summary>
 public class CartesianPositionSubscriber : UnitySubscriber<RosString>
 {
-    // Para pausar/reanudar la lectura de mensajes.
+    [Header("Estado Interno")]
     private bool isUpdating = true;
+    
+    /// <summary>
     /// Indica si la interpolación debe estar activada. Cuando isUpdating es false,
     /// se activa la interpolación; cuando se reanuda, se desactiva.
+    /// </summary>
     public bool InterpolationEnabled { get; private set; } = false;
 
-    // Última posición [x, y, z, rx, ry, rz].
+    /// <summary>Última posición cartesiana [x, y, z, rx, ry, rz].</summary>
     private float[] lastCartesianPositions = new float[6];
 
     protected override void Start()

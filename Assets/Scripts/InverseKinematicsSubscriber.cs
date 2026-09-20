@@ -1,6 +1,8 @@
 /*******************
 Autores:    Angel Garzon Sarzosa (ahgarzon@unicauca.edu.co)
-            Jhoan Simei Sarria (simei@unicauca.edu.co)                   
+            Jhoan Simei Sarria (simei@unicauca.edu.co)
+Modificado: Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+            Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
 *******************/
 using UnityEngine;
 using RosSharp.RosBridgeClient;
@@ -10,13 +12,17 @@ using System;
 // Alias para diferenciar entre RosSharp.RosBridgeClient.MessageTypes.Std.String y System.String
 using RosString = RosSharp.RosBridgeClient.MessageTypes.Std.String;
 
-// Clase para suscribirse a resultados de cinemática inversa y procesarlos.
+/// <summary>
+/// Suscriptor para resultados de cinemática inversa enviados por ROS 2.
+/// Tópico: /output_joint_position
+/// </summary>
 public class InverseKinematicsSubscriber : UnitySubscriber<RosString>
 {
-    // Referencia al script CartesianStateWriterNew para actualizar las posiciones articulares
+    [Header("Referencias de Scripts")]
+    [Tooltip("Referencia al script CartesianStateWriterNew para procesar y validar las posiciones articulares.")]
     public CartesianStateWriterNew cartesianStateWriter;
     
-    // Evento para notificar a otros scripts cuando se recibe un resultado de cinemática inversa
+    /// <summary>Evento para notificar a otros scripts cuando se recibe un resultado de IK.</summary>
     public System.Action<string> OnInverseKinematicsResultReceived;
 
     // Inicializa la suscripción al tópico ROS correspondiente.

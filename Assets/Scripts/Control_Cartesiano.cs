@@ -1,6 +1,8 @@
 /*******************
 Autores:    Angel Garzon Sarzosa (ahgarzon@unicauca.edu.co)
-            Jhoan Simei Sarria (simei@unicauca.edu.co)                   
+            Jhoan Simei Sarria (simei@unicauca.edu.co)
+Modificado: Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+            Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
 *******************/
 
 using System.Collections;
@@ -9,18 +11,28 @@ using UnityEngine;
 using TMPro;
 using RosSharp.RosBridgeClient;
 
+/// <summary>
+/// Gestiona la recolección visual de puntos cartesianos en la interfaz antigua.
+/// Instancia prefabs visuales para listar coordenadas ingresadas manualmente.
+/// </summary>
 public class Control_Cartesiano : MonoBehaviour
 {
-    public GameObject coordinatesPrefab; // Prefab para mostrar coordenadas
-    public RectTransform content; // Contenedor para las coordenadas
-    private TMP_InputField[] inputFields = new TMP_InputField[6]; // Vector de casillas de las coordenadas
-    private float[] values = new float[6]; // Valores de las coordenadas
-    public int numCoordinates; // Número de coordenadas agregadas
-    private GameObject[] points = new GameObject[100]; // Array para almacenar los puntos instanciados
+    [Header("UI - Coordenadas Visuales")]
+    [Tooltip("Prefab utilizado para renderizar la fila de la coordenada en la lista.")]
+    public GameObject coordinatesPrefab;
+    
+    [Tooltip("Contenedor (Scroll View) donde se anidarán las coordenadas agregadas.")]
+    public RectTransform content;
 
-    private GameObject robot; // Referencia al robot en la escena
+    [Header("Estado Interno")]
+    [Tooltip("Lleva el conteo del número de coordenadas agregadas a la lista visual.")]
+    public int numCoordinates;
 
-    // Start is called before the first frame update
+    private TMP_InputField[] inputFields = new TMP_InputField[6];
+    private float[] values = new float[6];
+    private GameObject[] points = new GameObject[100];
+    private GameObject robot;
+
     void Start()
     {
         // Inicializar las referencias a las casillas de coordenadas

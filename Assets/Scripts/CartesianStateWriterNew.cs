@@ -12,9 +12,14 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 
+/// <summary>
+/// Gestiona la recolección, validación y envío de trayectorias cartesianas (punto a punto).
+/// Integra la cinemática inversa para transformar los puntos ingresados a instrucciones articulares 
+/// para la simulación URDF, y envía los comandos cartesianos al robot físico a través de ROS 2.
+/// </summary>
 public class CartesianStateWriterNew : MonoBehaviour
 {
-    // --- Referencias a la interfaz de usuario ---
+    [Header("UI - Coordenadas Cartesianas")]
     public InputField posXInputField;
     public InputField posYInputField;
     public InputField posZInputField;
@@ -22,67 +27,74 @@ public class CartesianStateWriterNew : MonoBehaviour
     public InputField oriYInputField;
     public InputField oriZInputField;
 
+    [Header("UI - Controles de Trayectoria")]
     public Button sendCommandButton;
     public Button addButton;
-    public Button removeButton; // Botón para eliminar la última posición
-    public Button saveTxtButton; // Botón para guardar en txt
-
+    public Button removeButton;
+    public Button saveTxtButton;
     public Text coordinatesDisplay;
 
-    // --- Control de velocidad ---
+    [Header("UI - Control de Velocidad")]
     public Slider speedSlider;
     public InputField speedValueInput;
-    public Button increaseSpeedButton; // Botón para aumentar la velocidad
-    public Button decreaseSpeedButton; // Botón para disminuir la velocidad
+    public Button increaseSpeedButton;
+    public Button decreaseSpeedButton;
 
-    // --- Referencias a ROS2 y sus suscriptores ---
+    [Header("Enlaces ROS 2")]
     public Ros2CommandSender ros2CommandSender;
     public InverseKinematicsSubscriber ikSubscriber;
     public CartesianPositionSubscriber cartesianPositionSubscriber;
     public JointPositionSubscriber jointPositionSubscriber;
-
-    // --- Referencia a los escritores de estado de articulaciones (para actualizar el URDF) ---
-    public JointStateWriter[] jointStateWriters;
-
-    // --- EndoWrist ---
     public EndoWristSubscriber endoWristSubscriber;
 
-    // --- Listas para almacenar comandos y estados ---
-    // Lista de comandos articulares (para IK/URDF; no se usan para mover al robot)
+    [Header("Componentes Robot URDF")]
+    [Tooltip("Escritores de estado para actualizar la rotación del robot virtual.")]
+    public JointStateWriter[] jointStateWriters;
+
+    [Header("Seguridad")]
+    [Tooltip("Asigna aquí tu caja de texto para mostrar los avisos de seguridad (no contamina la lista de puntos).")]
+    public Text safetyWarningText;
+
+    // --- Estado Interno de Trayectoria ---
+
+    /// <summary>Comandos articulares para la simulación URDF (no se envían al robot real).</summary>
     private List<string> jointCommands = new List<string>();
-    // Lista para mostrar en pantalla (texto formateado con posiciones cartesianas y velocidad)
+    
+    /// <summary>Historial de texto formateado para el display de la interfaz.</summary>
     private List<string> cartesianCoordinates = new List<string>();
-    // Lista con las posiciones cartesianas en bruto (tomadas de los inputs)
+    
+    /// <summary>Comandos cartesianos crudos almacenados desde los InputFields.</summary>
     private List<string> cartesianCommandsList = new List<string>();
-    // Lista con los valores [x, y, z, rx, ry, rz] en float (tomadas de los inputs)
+    
+    /// <summary>Listado secuencial de posiciones [x, y, z, rx, ry, rz] para cálculo de distancias.</summary>
     private List<float[]> cartesianPositionsList = new List<float[]>();
-    // Lista de comandos que se enviarán al robot (formato CARTPoint(...))
+    
+    /// <summary>Comandos formateados como CARTPoint(...) listos para envío a ROS 2.</summary>
     private List<string> cartPointCommands = new List<string>();
-    // Listas de velocidad y delay
-    private List<float> speedList = new List<float>();
-    private List<float> delayList = new List<float>();
-    // *** NUEVO: Lista con los resultados IK (posición de joints en grados) que serán la posición objetivo
+    
+    /// <summary>Resultados IK almacenados por punto (posición objetivo de motores en grados).</summary>
     private List<float[]> ikCartesianPositionsList = new List<float[]>();
     
-    // Lista para almacenar las posiciones de la pinza
+    /// <summary>Posiciones de la herramienta EndoWrist asociadas a cada punto.</summary>
     private List<float[]> endoWristPositionsList = new List<float[]>();
 
-    private int pointIndex = 1;  // Índice para los puntos (aumenta al agregar, se reinicia al enviar cada lote)
+    private List<float> speedList = new List<float>();
+    private List<float> delayList = new List<float>();
+
+    private int pointIndex = 1;
     private float[] currentPositions = new float[6];
 
-    // Cola segura para pasar datos desde el hilo de ROS al hilo principal de Unity
+    // --- Sincronización ROS a Unity (Hilos) ---
+
     private bool hasNewIkResult = false;
     private float[] pendingIkResult = null;
-    private bool pendingNaNError = false;  // Bandera para mostrar error de NaN en hilo principal
+    private bool pendingNaNError = false;
     private bool awaitingInverseKinematics = false;
     private bool isListening = true;
     private bool isManualEditing = false;
 
-    private string savePath = "/home/miguel/Interfaz Unity AN5"; // Ruta de guardado
+    private string savePath = "/home/miguel/Interfaz Unity AN5"; // TODO: Reemplazar con Application.dataPath
 
-    [Header("Seguridad - Aviso UI")]
-    [Tooltip("Asigna aquí tu caja de texto para mostrar los avisos de seguridad (no contamina la lista de puntos).")]
-    public Text safetyWarningText;
     void Start()
     {
         // Configuración de botones
@@ -704,7 +716,7 @@ public class CartesianStateWriterNew : MonoBehaviour
     // Ejemplo de línea guardada: -497,-102,466,180,0,0,17,0
     private void GuardarEnTxt()
     {
-        string filePath = Path.Combine(savePath, "cartesian_positions.txt");
+        string filePath = Path.Combine(savePath, "CartesianoPoints.txt");
         using (StreamWriter writer = new StreamWriter(filePath))
         {
             // Escribir la primera línea con la palabra "cartesiano"

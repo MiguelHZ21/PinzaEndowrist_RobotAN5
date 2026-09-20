@@ -1,7 +1,8 @@
 /*******************
-Suscriptor para vista previa (preview) visual de trayectorias articulares en Unity.
-Tópico: /preview_joint_position (std_msgs/String)
-Formato: "j1,j2,j3,j4,j5,j6" (en grados)
+Autores:    Angel Garzon Sarzosa (ahgarzon@unicauca.edu.co)
+            Jhoan Simei Sarria (simei@unicauca.edu.co)
+Modificado: Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+            Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
 *******************/
 
 using UnityEngine;
@@ -9,16 +10,23 @@ using RosSharp.RosBridgeClient;
 using System;
 using StringMsg = RosSharp.RosBridgeClient.MessageTypes.Std.String;
 
+/// <summary>
+/// Suscriptor para vista previa (preview) visual de trayectorias articulares en Unity.
+/// Tópico: /preview_joint_position (std_msgs/String)
+/// </summary>
 public class TrajectoryPreviewSubscriber : MonoBehaviour
 {
-    [Header("JointStateWriter de las 6 articulaciones del robot")]
+    [Header("Componentes Robot URDF")]
+    [Tooltip("Escritores de estado para actualizar la rotación del robot virtual durante el preview.")]
     public JointStateWriter[] jointStateWriters;
 
+    [Header("Enlaces ROS 2")]
     private RosConnector rosConnector;
     private RosSocket rosSocket;
     private string topicId;
     private string topic = "/preview_joint_position";
 
+    // --- Sincronización ROS a Unity (Hilos) ---
     private readonly object lockObj = new object();
     private float[] pendingJoints = null;
 

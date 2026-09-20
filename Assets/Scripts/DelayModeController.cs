@@ -1,25 +1,34 @@
 /*******************
 Autores:    Angel Garzon Sarzosa (ahgarzon@unicauca.edu.co)
-            Jhoan Simei Sarria (simei@unicauca.edu.co)                   
+            Jhoan Simei Sarria (simei@unicauca.edu.co)
+Modificado: Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+            Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
 *******************/
 
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// Controla la activación del modo Delay en la interfaz. 
+/// Actúa como un Singleton para proveer el tiempo de retraso a otros scripts.
+/// </summary>
 public class DelayModeController : MonoBehaviour
 {
-    public Toggle delayModeToggle;         // Toggle principal para activar/desactivar el modo delay
-    public Toggle secondaryDelayToggle;    // Segundo Toggle para control adicional del delay
-    public Toggle tertiaryDelayToggle;     // Tercer Toggle para control adicional del delay
+    [Header("UI - Toggles de Activación")]
+    public Toggle delayModeToggle;
+    public Toggle secondaryDelayToggle;
+    public Toggle tertiaryDelayToggle;
 
-    public InputField delayInputField;        // Campo principal para ingresar el valor del delay
-    public InputField secondaryInputField;    // Segundo InputField para delay adicional
-    public InputField tertiaryInputField;     // Tercer InputField para delay adicional
+    [Header("UI - Campos de Entrada (Segundos)")]
+    public InputField delayInputField;
+    public InputField secondaryInputField;
+    public InputField tertiaryInputField;
 
-    private bool isDelayModeActive = false;    // Indica si el modo delay está activo
-    private float delayTime = 0f;               // Tiempo de delay configurado
+    // --- Estado Interno ---
+    private bool isDelayModeActive = false;
+    private float delayTime = 0f;
 
-    // Singleton para acceder fácilmente desde otros scripts
+    /// <summary>Singleton para acceder fácilmente desde otros scripts.</summary>
     public static DelayModeController Instance { get; private set; }
 
     void Awake()

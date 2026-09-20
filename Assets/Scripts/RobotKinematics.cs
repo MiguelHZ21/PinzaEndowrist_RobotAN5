@@ -1,10 +1,15 @@
 /*******************
 Autores:    Angel Garzon Sarzosa (ahgarzon@unicauca.edu.co)
-            Jhoan Simei Sarria (simei@unicauca.edu.co)                   
+            Jhoan Simei Sarria (simei@unicauca.edu.co)
+Modificado: Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+            Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
 *******************/
 
 using UnityEngine;
 
+/// <summary>
+/// Provee utilidades matemáticas estáticas para resolver cinemática en C#.
+/// </summary>
 public class RobotKinematics : MonoBehaviour
 {
     // Método estático para calcular la matriz de transformación total usando los parámetros DH y los ángulos articulares q

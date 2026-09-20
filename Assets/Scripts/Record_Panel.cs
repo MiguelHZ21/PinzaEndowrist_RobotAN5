@@ -1,60 +1,67 @@
 /*******************
 Autores:    Angel Garzon Sarzosa (ahgarzon@unicauca.edu.co)
-            Jhoan Simei Sarria (simei@unicauca.edu.co)                   
+            Jhoan Simei Sarria (simei@unicauca.edu.co)
+Modificado: Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+            Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
 *******************/
 
 using System.Collections;
 using System.Collections.Generic;
-using System.IO; // Necesario para escribir archivos
+using System.IO;
 using UnityEngine;
 using UnityEngine.UI;
 using RosSharp.RosBridgeClient;
 
+/// <summary>
+/// Gestiona la grabación de posiciones ("Free Drive" o "Record"). 
+/// Permite capturar las coordenadas actuales (articulares y cartesianas) 
+/// y enviarlas luego al robot como una trayectoria continua.
+/// </summary>
 public class recordPanel : MonoBehaviour
 {
-    // Botones de interfaz
-    public Button grabarButton;      // Botón para grabar posiciones actuales
-    public Button enviarButton;      // Botón para enviar todas las posiciones grabadas
-    public Button clearButton;       // Botón para limpiar (eliminar el último comando grabado)
-    public Button saveTxtButton;     // Botón para guardar las posiciones en un archivo txt
-    public Text grabarDisplay;       // Texto donde se muestran los puntos añadidos
+    [Header("UI - Controles de Grabación")]
+    public Button grabarButton;
+    public Button enviarButton;
+    public Button clearButton;
+    public Button saveTxtButton;
+    public Text grabarDisplay;
 
-    // Suscriptores y enviadores de comandos ROS
-    public Ros2CommandSender ros2CommandSender;                    // Para enviar comandos ROS
-    public JointPositionSubscriber jointPositionSubscriber;        // Suscripción a posiciones articulares
-    public CartesianPositionSubscriber cartesianPositionSubscriber; // Suscripción a posiciones cartesianas
-    public EndoWristSubscriber endoWristSubscriber;               // Suscripción a posiciones de la pinza
+    [Header("UI - Control de Velocidad")]
+    public Slider speedSlider;
+    public InputField speedInputField;
+    public Button increaseSpeedButton;
+    public Button decreaseSpeedButton;
 
-    // Controles de velocidad
-    public Slider speedSlider;           // Slider para controlar la velocidad de movimiento
-    public InputField speedInputField;   // Campo de entrada para mostrar y cambiar la velocidad
-    public Button increaseSpeedButton;   // Botón para aumentar la velocidad
-    public Button decreaseSpeedButton;   // Botón para disminuir la velocidad
+    [Header("Enlaces ROS 2")]
+    public Ros2CommandSender ros2CommandSender;
+    public JointPositionSubscriber jointPositionSubscriber;
+    public CartesianPositionSubscriber cartesianPositionSubscriber;
+    public EndoWristSubscriber endoWristSubscriber;
 
-    // Listas para almacenar comandos y posiciones
-    private List<string> jointCommands = new List<string>();         // Lista para almacenar comandos JNTPoint
-    private List<float[]> jointPositionsList = new List<float[]>();    // Lista para almacenar las posiciones articulares
-    private List<float[]> cartesianPositionsList = new List<float[]>();  // Lista para almacenar las posiciones cartesianas
-    private List<float[]> endoWristPositionsList = new List<float[]>();  // Lista para almacenar las posiciones de la pinza
-    private List<int> pointIndices = new List<int>();                  // Índices de los puntos grabados
-    private List<float> speedList = new List<float>();                 // Lista para almacenar las velocidades asociadas a cada punto
-    private List<float> delayList = new List<float>();                 // Lista para almacenar los delays de cada punto
+    [Header("Seguridad")]
+    [Tooltip("Asigna aquí tu caja de texto para mostrar los avisos de seguridad.")]
+    public Text safetyWarningText;
+
+    // --- Estado Interno de Trayectoria ---
+    private List<string> jointCommands = new List<string>();
+    private List<float[]> jointPositionsList = new List<float[]>();
+    private List<float[]> cartesianPositionsList = new List<float[]>();
+    private List<float[]> endoWristPositionsList = new List<float[]>();
+    private List<int> pointIndices = new List<int>();
+    private List<float> speedList = new List<float>();
+    private List<float> delayList = new List<float>();
+
+    private float speed = 10f; // Velocidad inicial por defecto
+    private int pointIndex = 1;
+    private string savePath = "/home/miguel/Interfaz Unity AN5"; // TODO: Reemplazar con Application.dataPath
 
     // Variables internas
-    private int pointIndex = 1;                  // Índice para los comandos JNTPoint
     private float[] jointPositions = new float[6];        // Posiciones articulares actuales
     private float[] lastJointPositions = new float[6];    // Última posición de articulaciones para evitar duplicados
     private float[] lastCartesianPositions = new float[6]; // Última posición cartesiana para evitar duplicados
     private float[] endoWristPositions = new float[4];    // Posiciones de la pinza actuales
     private float[] lastEndoWristPositions = new float[4]; // Última posición de pinza para evitar duplicados
-    private float speed = 10f;                    // Velocidad predeterminada
     private bool isFirstPoint = true;             // Verificar si es el primer punto grabado
-    private string savePath = "/home/miguel/Interfaz Unity AN5"; // Ruta donde se guardará el archivo txt
-
-    [Header("Seguridad - Aviso UI")]
-    [Tooltip("Asigna aquí tu caja de texto para mostrar los avisos de seguridad (no contamina la lista de puntos).")]
-    public Text safetyWarningText;
-
     void Start()
     {
         // Asignar listeners a los botones de la interfaz
