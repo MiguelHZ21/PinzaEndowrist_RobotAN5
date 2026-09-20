@@ -300,6 +300,18 @@ class NodoIK(Node):
                 self._estado(f"Orientacion Rx fuera de limites en fila {idx}: Rx={rx}", "error")
                 return
 
+            # ── SEGURIDAD: Salto cartesiano entre puntos consecutivos ──
+            if header == "cartesiano":
+                MAX_SALTO_MM = 50.0
+                if valid_rows:  # No comparar el primer punto
+                    xp, yp, zp = valid_rows[-1][0], valid_rows[-1][1], valid_rows[-1][2]
+                    dist_mm = math.sqrt((x - xp)**2 + (y - yp)**2 + (z - zp)**2)
+                    if dist_mm > MAX_SALTO_MM:
+                        self._estado(
+                            f"BLOQUEO SEGURIDAD fila {idx}: salto XYZ de {dist_mm:.1f} mm "
+                            f"supera el limite de {MAX_SALTO_MM} mm. Trayectoria rechazada.", "error")
+                        return
+
             # Resolver IK
             T = pose_a_T(x / 1000.0, y / 1000.0, z / 1000.0,
                          math.radians(rx), math.radians(ry), math.radians(rz))
@@ -320,6 +332,15 @@ class NodoIK(Node):
                     (-267 <= j4 <= -180 and -90 <= j5 <= 90)):
                 self._estado(f"Valores J4/J5 fuera de limites en fila {idx}: J4={j4:.2f}, J5={j5:.2f}", "error")
                 return
+
+            # ── SEGURIDAD: Salto articular entre puntos consecutivos ──
+            if header == "articular" and valid_joints:
+                MAX_JOINT_JUMP_DEG = 10.0
+                prev_q = valid_joints[-1][0]
+                max_jump = np.max(np.abs(np.array(q_deg) - np.array(prev_q)))
+                if max_jump > MAX_JOINT_JUMP_DEG:
+                    self._estado(f"BLOQUEO SEGURIDAD fila {idx}: salto articular de {max_jump:.1f}° supera el limite de {MAX_JOINT_JUMP_DEG}°. Trayectoria rechazada.", "error")
+                    return
 
             semilla_actual = sol.q
             valid_rows.append((x, y, z, rx, ry, rz, velocidad, control))
@@ -458,6 +479,7 @@ class NodoIK(Node):
         valid_joints = []
         valid_pinza = []
         valid_delays = []
+        prev_xyz = None  # Para validar salto cartesiano entre puntos consecutivos
         semilla_actual = self.q_actual if self.q_actual is not None else np.radians([0.0, -90.0, 90.0, -90.0, -90.0, 90.0])
 
         # Fase 1: Validar y resolver IK para todos los puntos
@@ -493,6 +515,19 @@ class NodoIK(Node):
                 self._estado(f"Orientación Rx fuera de límites en fila {idx}: Rx={rx}", "error")
                 return
 
+            # ── SEGURIDAD: Salto cartesiano entre puntos consecutivos ──
+            if header == "cartesiano":
+                MAX_SALTO_MM = 50.0
+                if prev_xyz is not None:  # No comparar el primer punto
+                    xp, yp, zp = prev_xyz
+                    dist_mm = math.sqrt((x - xp)**2 + (y - yp)**2 + (z - zp)**2)
+                    if dist_mm > MAX_SALTO_MM:
+                        self._estado(
+                            f"BLOQUEO SEGURIDAD preview fila {idx}: salto XYZ de {dist_mm:.1f} mm "
+                            f"supera el limite de {MAX_SALTO_MM} mm. Preview rechazado.", "error")
+                        return
+            prev_xyz = (x, y, z)
+
             T = pose_a_T(x / 1000.0, y / 1000.0, z / 1000.0,
                              math.radians(rx), math.radians(ry), math.radians(rz))
             sol = ik_mejor(T, q_semilla=semilla_actual,
@@ -504,6 +539,16 @@ class NodoIK(Node):
                 return
 
             q_deg = sol.grados()
+
+            # ── SEGURIDAD: Salto articular entre puntos consecutivos ──
+            if header == "articular" and valid_joints:
+                MAX_JOINT_JUMP_DEG = 10.0
+                prev_q = valid_joints[-1]
+                max_jump = np.max(np.abs(np.array(q_deg) - np.array(prev_q)))
+                if max_jump > MAX_JOINT_JUMP_DEG:
+                    self._estado(f"BLOQUEO SEGURIDAD preview fila {idx}: salto articular de {max_jump:.1f}° supera el limite de {MAX_JOINT_JUMP_DEG}°. Preview rechazado.", "error")
+                    return
+
             semilla_actual = sol.q
             valid_joints.append(q_deg)
             valid_pinza.append(pinza)

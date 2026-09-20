@@ -29,6 +29,10 @@ public class Sendtxt : MonoBehaviour
     private string selectedFilePath = ""; // Ruta del archivo seleccionado
     private string initialPath = "/home/miguel/Interfaz Unity AN5"; // Ruta inicial para el explorador de archivos
 
+    [Header("Seguridad - Aviso UI")]
+    [Tooltip("Asigna aquí tu caja de texto para mostrar los avisos de seguridad.")]
+    public Text safetyWarningText;
+
     void Start()
     {
         // Conectar con el servidor ROSBridge
@@ -106,12 +110,27 @@ public class Sendtxt : MonoBehaviour
         if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
         {
             selectedFilePath = filePath;
-            UnityEngine.Debug.Log("Archivo .txt seleccionado: " + selectedFilePath); // Mensaje en español
+            UnityEngine.Debug.Log("Archivo .txt seleccionado: " + selectedFilePath);
+
+            // Validar el archivo al cargarlo (SafetyRobot)
+            string validationError;
+            if (!SafetyRobot.ValidateTxtFile(selectedFilePath, out validationError))
+            {
+                UnityEngine.Debug.LogError("[SafetyRobot] " + validationError);
+                if (safetyWarningText != null)
+                    safetyWarningText.text = validationError;
+            }
+            else
+            {
+                UnityEngine.Debug.Log("[SafetyRobot] Archivo validado. Listo para enviar.");
+                if (safetyWarningText != null)
+                    safetyWarningText.text = "✅ Archivo validado. Listo para enviar.";
+            }
         }
         else
         {
-            UnityEngine.Debug.Log("No se seleccionó ningún archivo."); // Mensaje en español
-            selectedFilePath = ""; // Reiniciar la selección si no se seleccionó un archivo
+            UnityEngine.Debug.Log("No se seleccionó ningún archivo.");
+            selectedFilePath = "";
         }
     }
 
@@ -120,14 +139,23 @@ public class Sendtxt : MonoBehaviour
     {
         if (!string.IsNullOrEmpty(selectedFilePath))
         {
-            // Crear el mensaje con la ruta del archivo
+            string validationError;
+            if (!SafetyRobot.ValidateTxtFile(selectedFilePath, out validationError))
+            {
+                UnityEngine.Debug.LogError("[SafetyRobot] " + validationError);
+                if (safetyWarningText != null)
+                    safetyWarningText.text = validationError;
+                return;
+            }
             RosString message = new RosString { data = selectedFilePath };
             rosSocket.Publish(filePathTopic, message);
-            UnityEngine.Debug.Log("Ruta del archivo publicada en el tópico: " + filePathTopic); // Mensaje en español
+            UnityEngine.Debug.Log("Ruta del archivo publicada en el tópico: " + filePathTopic);
+            if (safetyWarningText != null)
+                safetyWarningText.text = "✅ Archivo enviado al robot.";
         }
         else
         {
-            UnityEngine.Debug.Log("No hay archivo seleccionado. Por favor, selecciona un archivo .txt antes de enviar."); // Mensaje en español
+            UnityEngine.Debug.Log("No hay archivo seleccionado. Por favor, selecciona un archivo .txt antes de enviar.");
         }
     }
 
@@ -136,14 +164,25 @@ public class Sendtxt : MonoBehaviour
     {
         if (!string.IsNullOrEmpty(selectedFilePath))
         {
+            string validationError;
+            if (!SafetyRobot.ValidateTxtFile(selectedFilePath, out validationError))
+            {
+                UnityEngine.Debug.LogError("[SafetyRobot] " + validationError);
+                if (safetyWarningText != null)
+                    safetyWarningText.text = validationError;
+                return;
+            }
             RosString message = new RosString { data = selectedFilePath };
             rosSocket.Publish(previewPathTopic, message);
             UnityEngine.Debug.Log("Ruta del archivo enviada para PREVIEW: " + previewPathTopic);
+            if (safetyWarningText != null)
+                safetyWarningText.text = "✅ Preview enviado.";
         }
         else
         {
             UnityEngine.Debug.Log("No hay archivo seleccionado para reproducir.");
         }
+
     }
 
     // Cerrar la conexión al destruir el objeto

@@ -1,6 +1,8 @@
 /*******************
 Autores:    Angel Garzon Sarzosa (ahgarzon@unicauca.edu.co)
             Jhoan Simei Sarria (simei@unicauca.edu.co)
+Modificado: Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+            Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
 *******************/
 using UnityEngine;
 using UnityEngine.UI;
@@ -65,7 +67,6 @@ public class ButtonPanel : MonoBehaviour
 
     /// <summary>
     /// Abre el panel EndoWrist y cierra todos los demás.
-    /// Asignar al OnClick del Boton_Wrist.
     /// </summary>
     public void OpenEndoWristPanel()
     {

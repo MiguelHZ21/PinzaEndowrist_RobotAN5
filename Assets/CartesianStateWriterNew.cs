@@ -1,7 +1,10 @@
 /*******************
 Autores:    Angel Garzon Sarzosa (ahgarzon@unicauca.edu.co)
-            Jhoan Simei Sarria (simei@unicauca.edu.co)                   
+            Jhoan Simei Sarria (simei@unicauca.edu.co)
+Modificado: Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+            Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
 *******************/
+
 using System;
 using UnityEngine;
 using UnityEngine.UI;
@@ -77,6 +80,9 @@ public class CartesianStateWriterNew : MonoBehaviour
 
     private string savePath = "/home/miguel/Interfaz Unity AN5"; // Ruta de guardado
 
+    [Header("Seguridad - Aviso UI")]
+    [Tooltip("Asigna aquí tu caja de texto para mostrar los avisos de seguridad (no contamina la lista de puntos).")]
+    public Text safetyWarningText;
     void Start()
     {
         // Configuración de botones
@@ -286,7 +292,7 @@ public class CartesianStateWriterNew : MonoBehaviour
     {
         Debug.Log("[CartesianStateWriterNew] StartUpdating() llamado.");
     }
-       private void AddCurrentPosition()
+    private void AddCurrentPosition()
     {
         // Al presionar Add, se detiene la actualización de los joints para permitir la interpolación.
         if (jointPositionSubscriber != null)
@@ -316,6 +322,22 @@ public class CartesianStateWriterNew : MonoBehaviour
             float[] rx_lim_1 = { -180f, -20f };
             float[] rx_lim_2 = { 20f, 180f };
 
+            // Verificación de seguridad centralizada (SafetyRobot)
+            float[] prevPos = cartesianPositionsList.Count > 0 ? cartesianPositionsList[cartesianPositionsList.Count - 1] : null;
+            string safetyWarning;
+            if (!SafetyRobot.CheckCartesianJump(posX, posY, posZ, oriX, oriY, oriZ, prevPos, out safetyWarning))
+            {
+                Debug.LogWarning(safetyWarning);
+                if (safetyWarningText != null)
+                    safetyWarningText.text = safetyWarning;
+                else
+                    coordinatesDisplay.text = safetyWarning; // fallback
+                return;
+            }
+            // Punto válido: limpiar aviso de seguridad
+            if (safetyWarningText != null)
+                safetyWarningText.text = string.Empty;
+
             if (posX < x_lim[0] || posX > x_lim[1] ||
                 posY < y_lim[0] || posY > y_lim[1] ||
                 posZ < z_lim[0] || posZ > z_lim[1] ||
@@ -324,6 +346,7 @@ public class CartesianStateWriterNew : MonoBehaviour
                 coordinatesDisplay.text = "Posiciones fuera del rango (Cartesiano)";
                 return;
             }
+
 
             string cartesianCommand = FormCartesianCommand();
             float[] cartesianPositions = new float[] { posX, posY, posZ, oriX, oriY, oriZ };
@@ -417,6 +440,26 @@ public class CartesianStateWriterNew : MonoBehaviour
             isManualEditing = false;
             isListening = true;
             yield break;
+        }
+
+        // Re-validación de seguridad global antes de enviar al robot
+        for (int i = 1; i < cartesianPositionsList.Count; i++)
+        {
+            float[] prev = cartesianPositionsList[i - 1];
+            float[] curr = cartesianPositionsList[i];
+            string safetyWarning;
+            if (!SafetyRobot.CheckCartesianJump(curr[0], curr[1], curr[2],
+                                                curr[3], curr[4], curr[5],
+                                                prev, out safetyWarning))
+            {
+                string errorMsg = $"⚠ BLOQUEO DE SEGURIDAD en P{i + 1}: {safetyWarning}";
+                Debug.LogError(errorMsg);
+                if (safetyWarningText != null)
+                    safetyWarningText.text = errorMsg;
+                else
+                    coordinatesDisplay.text = errorMsg;
+                yield break;
+            }
         }
 
         // Al presionar Send, se reactiva la suscripción para actualizar los joints normalmente.

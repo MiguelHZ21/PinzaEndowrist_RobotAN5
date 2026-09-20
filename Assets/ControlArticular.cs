@@ -75,6 +75,12 @@ public class ControlArticular : MonoBehaviour
     // Ruta donde se guardará el archivo de posiciones
     private string savePath = "/home/miguel/Interfaz Unity AN5";
 
+    [Header("Seguridad - Aviso UI")]
+    [Tooltip("Asigna aquí tu caja de texto para mostrar los avisos de seguridad (no contamina la lista de puntos).")]
+    public Text safetyWarningText;
+
+
+
     void Start()
     {
         // Asignar listeners a los botones principales
@@ -348,6 +354,22 @@ public class ControlArticular : MonoBehaviour
     // Añadir una posición articular a la lista y enviarla a ROS2
     private void AddJointPosition()
     {
+        // Verificación de seguridad centralizada
+        float[] prevPositions = jointPositionsList.Count > 0 ? jointPositionsList[jointPositionsList.Count - 1] : null;
+        string safetyWarning;
+        if (!SafetyRobot.CheckJointJump(jointPositions, prevPositions, out safetyWarning))
+        {
+            Debug.LogWarning(safetyWarning);
+            if (safetyWarningText != null)
+                safetyWarningText.text = safetyWarning;
+            else if (coordinatesDisplay != null)
+                coordinatesDisplay.text = safetyWarning; // fallback
+            return;
+        }
+        // Punto válido: limpiar aviso de seguridad
+        if (safetyWarningText != null)
+            safetyWarningText.text = string.Empty;
+
         int newIndex = jointPositionsList.Count; // Índice del punto que se va a agregar
 
         jointPositionsList.Add((float[])jointPositions.Clone());
@@ -569,6 +591,22 @@ public class ControlArticular : MonoBehaviour
         {
             Debug.LogWarning("No hay comandos de articulaciones para enviar.");
             yield break;
+        }
+
+        // Re-validación de seguridad global antes de enviar al robot
+        for (int i = 1; i < jointPositionsList.Count; i++)
+        {
+            string safetyWarning;
+            if (!SafetyRobot.CheckJointJump(jointPositionsList[i], jointPositionsList[i - 1], out safetyWarning))
+            {
+                string errorMsg = $"⚠ BLOQUEO DE SEGURIDAD en P{i + 1}: {safetyWarning}";
+                Debug.LogError(errorMsg);
+                if (safetyWarningText != null)
+                    safetyWarningText.text = errorMsg;
+                else if (coordinatesDisplay != null)
+                    coordinatesDisplay.text = errorMsg; // fallback
+                yield break;
+            }
         }
 
         // Iniciar actualizaciones de posiciones articulares

@@ -51,6 +51,10 @@ public class recordPanel : MonoBehaviour
     private bool isFirstPoint = true;             // Verificar si es el primer punto grabado
     private string savePath = "/home/miguel/Interfaz Unity AN5"; // Ruta donde se guardará el archivo txt
 
+    [Header("Seguridad - Aviso UI")]
+    [Tooltip("Asigna aquí tu caja de texto para mostrar los avisos de seguridad (no contamina la lista de puntos).")]
+    public Text safetyWarningText;
+
     void Start()
     {
         // Asignar listeners a los botones de la interfaz
@@ -100,37 +104,42 @@ public class recordPanel : MonoBehaviour
     // Método para grabar la posición actual del robot
     private void GrabarPosicionActual()
     {
-        // Obtener las últimas posiciones articulares y cartesianas conocidas directamente de los suscriptores
         jointPositions = jointPositionSubscriber.GetLastKnownPositions();
         float[] cartesianPositions = cartesianPositionSubscriber.GetLastKnownCartesianPositions();
         if (endoWristSubscriber != null)
-        {
             endoWristPositions = endoWristSubscriber.GetLastKnownPositions();
-        }
 
         if (isFirstPoint)
         {
-            // Si es el primer punto, guardarlo directamente sin comparación
             GuardarPunto(cartesianPositions);
-            isFirstPoint = false; // Ya no es el primer punto
+            isFirstPoint = false;
         }
         else
         {
-            // Verificar si ha habido un cambio significativo en las posiciones
             bool haCambiado = false;
             for (int i = 0; i < jointPositions.Length; i++)
             {
                 if (Mathf.Abs(jointPositions[i] - lastJointPositions[i]) > 0.01f ||
-                    Mathf.Abs(cartesianPositions[i] - lastCartesianPositions[i]) > 0.1f) // Cambios mayores a 0.01 para articulares y 0.1 para cartesianas
-                {
-                    haCambiado = true;
-                    break;
-                }
+                    Mathf.Abs(cartesianPositions[i] - lastCartesianPositions[i]) > 0.1f)
+                { haCambiado = true; break; }
             }
 
             if (haCambiado)
             {
-                // Si ha habido cambios, guardar el nuevo punto
+                // Verificación de seguridad centralizada (SafetyRobot)
+                string safetyWarning;
+                if (!SafetyRobot.CheckJointJump(jointPositions, lastJointPositions, out safetyWarning))
+                {
+                    Debug.LogWarning(safetyWarning);
+                    if (safetyWarningText != null)
+                        safetyWarningText.text = safetyWarning;
+                    else if (grabarDisplay != null)
+                        grabarDisplay.text = safetyWarning + "\n" + grabarDisplay.text; // fallback
+                    return;
+                }
+                // Punto válido: limpiar aviso
+                if (safetyWarningText != null)
+                    safetyWarningText.text = string.Empty;
                 GuardarPunto(cartesianPositions);
             }
             else
@@ -194,6 +203,19 @@ public class recordPanel : MonoBehaviour
         {
             Debug.LogWarning("No hay comandos de articulaciones grabados para enviar.");
             yield break;
+        }
+
+        // Verificación de seguridad global antes de enviar (SafetyRobot)
+        for (int i = 1; i < jointPositionsList.Count; i++)
+        {
+            string safetyWarning;
+            if (!SafetyRobot.CheckJointJump(jointPositionsList[i], jointPositionsList[i - 1], out safetyWarning))
+            {
+                string errorMsg = $"⚠ BLOQUEO DE SEGURIDAD en P{i + 1}: {safetyWarning}";
+                Debug.LogError(errorMsg);
+                if (grabarDisplay != null) grabarDisplay.text = errorMsg;
+                yield break;
+            }
         }
 
         // Asegurar que jointPositionSubscriber está actualizando
