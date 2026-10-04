@@ -28,7 +28,7 @@ public class JointStateWriter : MonoBehaviour
     private UrdfJoint urdfJoint;
     // Almacena la rotación inicial del objeto (offset base) obtenido en Start().
     private Vector3 initialRotation;
-    // Nuevo estado recibido (en radianes) para la articulación.
+    // Nuevo estado recibido (en radianes para el robot FR5, en grados para la pinza EndoWrist).
     private float newState;
     // Indica si se ha recibido un nuevo estado que requiere actualización.
     private bool isNewStateReceived = false;
@@ -42,13 +42,11 @@ public class JointStateWriter : MonoBehaviour
     // Método de inicialización del componente.
     private void Start()
     {
-        // Se obtiene el componente UrdfJoint del GameObject.
+        // Se obtiene el componente UrdfJoint del GameObject (opcional, para robots URDF)
         urdfJoint = GetComponent<UrdfJoint>();
-        if (urdfJoint == null)
-            return; // Si no se encuentra el componente, se detiene la ejecución.
 
-        // Se almacena la rotación inicial del objeto.
-        initialRotation = urdfJoint.transform.localEulerAngles;
+        // Se almacena la rotación inicial del objeto (usando directamente el transform)
+        initialRotation = transform.localEulerAngles;
         // Se obtiene el ángulo actual de la articulación basado en la transformación.
         currentAngle = GetCurrentAngleFromTransform();
     }
@@ -75,12 +73,12 @@ public class JointStateWriter : MonoBehaviour
         }
     }
 
-    // Recibe el nuevo estado (en radianes) para la articulación.  
+    // Recibe el nuevo estado para la articulación.
+    // Para el robot FR5 (j1-j6): el valor llega en RADIANES.
+    // Para la pinza EndoWrist: el valor llega en GRADOS.
     // Si la escritura está bloqueada o ya se está interpolando, se ignoran nuevos valores.
     public void Write(float state)
     {
-        if (urdfJoint == null)
-            return; // No se puede proceder sin el componente UrdfJoint.
         if (lockUpdates)
             return; // Si las actualizaciones están bloqueadas, se ignora el nuevo valor.
         if (InterpolationEnabled && interpolationCoroutine != null)
@@ -89,6 +87,29 @@ public class JointStateWriter : MonoBehaviour
         // Se asigna el nuevo estado y se marca que se recibió un nuevo valor.
         newState = state;
         isNewStateReceived = true;
+    }
+
+    // Devuelve true si esta articulación pertenece a la pinza (EndoWrist).
+    // Las articulaciones de la pinza manejan sus valores en GRADOS,
+    // mientras que las del robot FR5 (j1-j6) los manejan en RADIANES.
+    private bool IsEndoWrist()
+    {
+        switch (JointName)
+        {
+            case "Endo_eje":
+            case "shaft":
+            case "Endo_muneca":
+            case "wrist":
+            case "Endo_mandibula_dx":
+            case "jaw_dx":
+            case "Jaw_Dx":
+            case "Endo_mandibula_sx":
+            case "jaw_sx":
+            case "Jaw_Sx":
+                return true;
+            default:
+                return false;
+        }
     }
 
     // Permite desbloquear la escritura para aceptar nuevas actualizaciones (por ejemplo, al presionar "Send").
@@ -100,8 +121,11 @@ public class JointStateWriter : MonoBehaviour
     // Coroutine que interpola la rotación desde la posición actual hasta la posición objetivo.
     private IEnumerator InterpolateRotation()
     {
-        // Convierte el nuevo estado de radianes a grados y lo invierte.
-        float targetValue = newState * Mathf.Rad2Deg * -1f;
+        // Para EndoWrist: el valor ya viene en grados, solo invertir el eje.
+        // Para FR5 (j1-j6): convertir de radianes a grados e invertir.
+        float targetValue = IsEndoWrist()
+            ? newState * -1f
+            : newState * Mathf.Rad2Deg * -1f;
         // Se inicia la rotación objetivo utilizando la rotación inicial como base.
         Vector3 targetRotation = initialRotation;
 
@@ -175,7 +199,7 @@ public class JointStateWriter : MonoBehaviour
         targetRotation.z = NormalizeAngle(targetRotation.z);
 
         // Obtiene la rotación actual y la normaliza.
-        Vector3 startRotation = urdfJoint.transform.localEulerAngles;
+        Vector3 startRotation = transform.localEulerAngles;
         startRotation.x = NormalizeAngle(startRotation.x);
         startRotation.y = NormalizeAngle(startRotation.y);
         startRotation.z = NormalizeAngle(startRotation.z);
@@ -229,13 +253,13 @@ public class JointStateWriter : MonoBehaviour
                 startRotation.z + Mathf.DeltaAngle(startRotation.z, targetRotation.z) * t
             );
             // Aplica la nueva rotación al objeto.
-            urdfJoint.transform.localEulerAngles = newRot;
+            transform.localEulerAngles = newRot;
             yield return null; // Espera al siguiente frame.
         }
         // Asegura que la rotación final sea exactamente la rotación objetivo.
-        urdfJoint.transform.localEulerAngles = targetRotation;
-        // Actualiza el ángulo actual con el valor objetivo.
-        currentAngle = targetValue;
+        transform.localEulerAngles = targetRotation;
+        // Actualiza el ángulo actual con el valor objetivo (en grados para EndoWrist).
+        currentAngle = IsEndoWrist() ? newState : targetValue;
         // Reinicia la referencia a la coroutine.
         interpolationCoroutine = null;
         // Libera el bloqueo de actualizaciones.
@@ -248,8 +272,11 @@ public class JointStateWriter : MonoBehaviour
     // Se respetan ciertos ejes fijos para algunas articulaciones (por ejemplo, j4_Link, j5_Link y j6_Link).
     private void ApplyTargetRotation()
     {
-        // Convierte el nuevo estado a grados e invierte el valor.
-        float targetValue = newState * Mathf.Rad2Deg * -1f;
+        // Para EndoWrist: el valor ya viene en grados, solo invertir el eje.
+        // Para FR5 (j1-j6): convertir de radianes a grados e invertir.
+        float targetValue = IsEndoWrist()
+            ? newState * -1f
+            : newState * Mathf.Rad2Deg * -1f;
         // Inicializa la rotación objetivo usando la rotación inicial.
         Vector3 targetRotation = initialRotation;
         // Determina la rotación objetivo según el nombre de la articulación.
@@ -320,16 +347,16 @@ public class JointStateWriter : MonoBehaviour
         targetRotation.y = NormalizeAngle(targetRotation.y);
         targetRotation.z = NormalizeAngle(targetRotation.z);
         // Aplica la rotación objetivo directamente al objeto.
-        urdfJoint.transform.localEulerAngles = targetRotation;
-        // Actualiza el ángulo actual con el valor objetivo.
-        currentAngle = targetValue;
+        transform.localEulerAngles = targetRotation;
+        // Actualiza el ángulo actual con el valor objetivo (en grados para EndoWrist).
+        currentAngle = IsEndoWrist() ? newState : targetValue;
     }
 
     // Obtiene el ángulo actual de la articulación a partir de la transformación.
     // Para ciertas articulaciones se devuelve el ángulo del eje Y, para otras el del eje X.
     private float GetCurrentAngleFromTransform()
     {
-        Vector3 rot = urdfJoint.transform.localEulerAngles;
+        Vector3 rot = transform.localEulerAngles;
         switch (JointName)
         {
             case "j1_Link":
@@ -369,18 +396,22 @@ public class JointStateWriter : MonoBehaviour
     }
 
     // Devuelve el ángulo actual del transform en Unity, normalizado [-180, 180]
-    // Lee directamente del transform del GameObject, sin depender de UrdfJoint
-    // Para articulaciones con HingeJoint (como las mandíbulas), lee de hingeJoint.angle
+    // Para la pinza (EndoWrist): devuelve directamente el valor en grados de currentAngle
+    //   para evitar distorsiones del eje Euler de Unity (ej. 180 - x) o gimballing.
+    // Para el robot FR5 (j1-j6): usa HingeJoint si existe, sino transform.
     public float GetCurrentUnityAngle()
     {
-        // Si tiene HingeJoint, leer el ángulo desde ahí (mandíbulas de la pinza)
+        if (IsEndoWrist())
+        {
+            return NormalizeAngle(currentAngle);
+        }
+
         HingeJoint hinge = GetComponent<HingeJoint>();
         if (hinge != null)
         {
             return NormalizeAngle(hinge.angle);
         }
 
-        // Si no tiene HingeJoint, leer del transform directamente
         Vector3 rot = transform.localEulerAngles;
         float rawAngle;
 
@@ -395,22 +426,6 @@ public class JointStateWriter : MonoBehaviour
             case "j5_Link":
             case "j6_Link":
                 rawAngle = rot.x;
-                break;
-            case "Endo_eje":
-            case "shaft":
-                rawAngle = rot.x;
-                break;
-            case "Endo_muneca":
-            case "wrist":
-                rawAngle = rot.z;
-                break;
-            case "Endo_mandibula_dx":
-            case "jaw_dx":
-            case "Jaw_Dx":
-            case "Endo_mandibula_sx":
-            case "jaw_sx":
-            case "Jaw_Sx":
-                rawAngle = rot.z;
                 break;
             default:
                 rawAngle = 0f;

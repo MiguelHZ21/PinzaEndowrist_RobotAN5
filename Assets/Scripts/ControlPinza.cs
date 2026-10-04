@@ -51,14 +51,14 @@ public class ControlPinza : MonoBehaviour
     }
 
     // --- EndoWrist: callbacks de sliders ---
-    // Los valores se envían en radianes al JointStateWriter.
+    // Los valores se envían en GRADOS al JointStateWriter.
 
     private void OnShaftChanged(float value)
     {
         if (writerShaft != null)
             writerShaft.Write(value);
         if (textValueShaft != null)
-            textValueShaft.text = (value * Mathf.Rad2Deg).ToString("F1") + "°";
+            textValueShaft.text = value.ToString("F1") + "°";
     }
 
     private void OnWristChanged(float value)
@@ -66,7 +66,7 @@ public class ControlPinza : MonoBehaviour
         if (writerWrist != null)
             writerWrist.Write(value);
         if (textValueWrist != null)
-            textValueWrist.text = (value * Mathf.Rad2Deg).ToString("F1") + "°";
+            textValueWrist.text = value.ToString("F1") + "°";
     }
 
     private void OnJawDxChanged(float value)
@@ -74,7 +74,7 @@ public class ControlPinza : MonoBehaviour
         if (writerJawDx != null)
             writerJawDx.Write(value);
         if (textValueJawDx != null)
-            textValueJawDx.text = (value * Mathf.Rad2Deg).ToString("F1") + "°";
+            textValueJawDx.text = value.ToString("F1") + "°";
     }
 
     private void OnJawSxChanged(float value)
@@ -82,6 +82,6 @@ public class ControlPinza : MonoBehaviour
         if (writerJawSx != null)
             writerJawSx.Write(value);
         if (textValueJawSx != null)
-            textValueJawSx.text = (value * Mathf.Rad2Deg).ToString("F1") + "°";
+            textValueJawSx.text = value.ToString("F1") + "°";
     }
 }

@@ -285,7 +285,7 @@ class NodoIK(Node):
                 x, y, z, rx, ry, rz = [float(p) for p in parts[:6]]
                 velocidad = float(parts[6])
                 control = float(parts[7])
-                # Columnas 8-11: valores de la pinza (shaft, wrist, jaw_dx, jaw_sx)
+                # Columnas 8-11: valores de la pinza en GRADOS (shaft, wrist, jaw_dx, jaw_sx)
                 if len(parts) >= 12:
                     pinza = [float(p) for p in parts[8:12]]
                 else:

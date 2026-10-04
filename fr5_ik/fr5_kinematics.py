@@ -39,7 +39,7 @@ T_i = Rz(theta_i)·Tz(d_i)·Tx(a_i)·Rx(alpha_i) con la tabla:
     3 | q3    | 0       | -0.39501 |  0
     4 | q4    | 0.1021  |  0       |  pi/2
     5 | q5    | 0.102   |  0       | -pi/2
-    6 | q6    | 0.267   |  0       |  0
+    6 | q6    | 0.457   |  0       |  0
 
 => El cero del URDF coincide con el cero de DH: NO hay offsets de junta.
    (verificado numericamente en selftest(): fk() vs fk_urdf())
@@ -85,8 +85,8 @@ soluciones y elige la mas cercana a donde el robot esta.
 
 VERIFICAR CONTRA EL ROBOT REAL (hacelo una vez, antes de mover nada)
 --------------------------------------------------------------------
-    python fr5_kinematics.py --verificar  \
-        --q   0,-90,90,-90,-90,0          \
+    python fr5_kinematics.py --verificar  
+        --q   0,-90,90,-90,-90,0          
         --tcp -500,0,400,180,0,0
 
 Toma una lectura simultanea de juntas y de TCP publicada por el robot real y te
@@ -128,7 +128,7 @@ D5 = 0.102      # offset de muneca    (URDF: joint j6, xyz z)
 # ADICIONAL y NO entra en la cinematica. El TCP es la BRIDA.
 #
 #   D6_BRIDA = 0.100  <- DEFECTO. Brida desnuda del FR5.
-#   D6_TOOL_URDF = 0.267  <- lo que dice el URDF (brida 0.100 + herramienta 0.167)
+#   D6_TOOL_URDF = 0.457  <- lo que dice el URDF (brida 0.100 + herramienta 0.167)
 #
 # CUIDADO: los 0.100 salen de la ficha tecnica del FR5, NO del URDF (este URDF no
 # tiene link de brida; fusiona brida + herramienta en `tool_Link` a 0.267). Es el

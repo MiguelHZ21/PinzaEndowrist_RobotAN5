@@ -16,6 +16,7 @@ using StringMsg = RosSharp.RosBridgeClient.MessageTypes.Std.String;
 /// Suscriptor que recibe posiciones de la pinza (EndoWrist) publicadas
 /// por el nodo de Python al reproducir una trayectoria cargada desde TXT.
 /// Tópico: /output_endowrist_path (std_msgs/String).
+/// NOTA: Los valores llegan en GRADOS y se pasan directamente al JointStateWriter.
 /// </summary>
 public class EndoWristPathSubscriber : MonoBehaviour
 {
