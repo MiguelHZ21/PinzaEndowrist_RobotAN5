@@ -13,13 +13,13 @@ using UnityEngine;
 public static class SafetyRobot
 {
     /// <summary>Límite máximo de variación articular (grados) entre dos puntos de la trayectoria.</summary>
-    public static float MaxJointJumpDeg = 10f;
+    public static float MaxJointJumpDeg = 45f;
 
     /// <summary>Límite máximo de desplazamiento lineal XYZ (mm) del TCP entre dos puntos consecutivos.</summary>
-    public static float MaxCartesianJumpMm = 50f;
+    public static float MaxCartesianJumpMm = 250f;
 
     /// <summary>Límite máximo de rotación cartesiana (grados) en cualquier eje (Rx, Ry, Rz).</summary>
-    public static float MaxOrientationJumpDeg = 15f;
+    public static float MaxOrientationJumpDeg = 45f;
 
     /// <summary>
     /// Valida que la interpolación entre dos configuraciones articulares no exceda el límite establecido.
@@ -45,6 +45,7 @@ public static class SafetyRobot
 
     /// <summary>
     /// Valida que el desplazamiento lineal y angular del TCP no exceda las tolerancias mecánicas.
+    /// Usa Mathf.DeltaAngle para manejar correctamente el cruce de frontera en ±180°.
     /// </summary>
     public static bool CheckCartesianJump(float x, float y, float z, float rx, float ry, float rz, float[] prev, out string warningMsg)
     {
@@ -60,8 +61,11 @@ public static class SafetyRobot
             return false;
         }
 
-        // Variación máxima de orientación en cualquiera de los ejes
-        float maxOriDelta = Mathf.Max(Mathf.Abs(rx - prev[3]), Mathf.Abs(ry - prev[4]), Mathf.Abs(rz - prev[5]));
+        // Variación máxima de orientación en cualquiera de los ejes usando la distancia angular más corta (±180°)
+        float deltaRx = Mathf.Abs(Mathf.DeltaAngle(prev[3], rx));
+        float deltaRy = Mathf.Abs(Mathf.DeltaAngle(prev[4], ry));
+        float deltaRz = Mathf.Abs(Mathf.DeltaAngle(prev[5], rz));
+        float maxOriDelta = Mathf.Max(deltaRx, deltaRy, deltaRz);
         if (maxOriDelta > MaxOrientationJumpDeg)
         {
             warningMsg = $"Variación de orientación de {maxOriDelta:F1}° excede el límite ({MaxOrientationJumpDeg}°).";

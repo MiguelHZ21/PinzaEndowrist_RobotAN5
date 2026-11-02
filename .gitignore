@@ -56,3 +56,17 @@ sysinfo.txt
 *.m~
 slprj/
 *.slxc
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Exclusiones locales (Proyecto Base, Informes y Auditoría)
+Interfaces-AN5-BASE/
+Informe/
+plantilla_informe.*
+PLAN_MEJORAS_Y_AUDITORIA.md
+.agents/
+Emulador/ArticularPoints_*.txt
+Emulador/CartesianPoints_*.txt
+

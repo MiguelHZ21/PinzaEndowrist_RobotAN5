@@ -39,10 +39,10 @@ public class MGD_Node : MonoBehaviour
 
     [Header("Tópicos")]
     [Tooltip("Tópico para recibir los ángulos de los motores.")]
-    private string inputTopic = "input_joint_position"; 
+    private string inputTopic = "/input_joint_position"; 
     
     [Tooltip("Tópico donde se publicará el resultado cartesiano.")]
-    private string outputTopic = "output_cartesian_position"; 
+    private string outputTopic = "/output_cartesian_position"; 
 
     // --- Identificadores de ROS ---
     private string inputTopicId; 

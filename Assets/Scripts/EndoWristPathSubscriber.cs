@@ -1,9 +1,7 @@
-/*******************
-Autores:    Angel Garzon Sarzosa (ahgarzon@unicauca.edu.co)
-            Jhoan Simei Sarria (simei@unicauca.edu.co)
-Modificado: Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+/***************************************************************
+Autores:    Miguel Hernandez (miguelhernandez@unicauca.edu.co)
             Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
-*******************/
+***************************************************************/
 
 using UnityEngine;
 using RosSharp.RosBridgeClient;
@@ -13,10 +11,9 @@ using System;
 using StringMsg = RosSharp.RosBridgeClient.MessageTypes.Std.String;
 
 /// <summary>
-/// Suscriptor que recibe posiciones de la pinza (EndoWrist) publicadas
-/// por el nodo de Python al reproducir una trayectoria cargada desde TXT.
-/// Tópico: /output_endowrist_path (std_msgs/String).
-/// NOTA: Los valores llegan en GRADOS y se pasan directamente al JointStateWriter.
+/// Suscriptor que recibe los comandos de posición enviados a la pinza (EndoWrist)
+/// en el tópico unificado /endowrist_command (std_msgs/String).
+/// NOTA: Los valores llegan en GRADOS ("shaft,wrist,jaw_dx,jaw_sx") y se pasan al JointStateWriter.
 /// </summary>
 public class EndoWristPathSubscriber : MonoBehaviour
 {
@@ -31,7 +28,7 @@ public class EndoWristPathSubscriber : MonoBehaviour
     private RosConnector rosConnector;
     private RosSocket rosSocket;
     private string topicId;
-    private string topic = "/output_endowrist_path";
+    private string topic = "/endowrist_command";
 
     // --- Sincronización ROS a Unity (Hilos) ---
     private readonly object lockObj = new object();
@@ -111,7 +108,7 @@ public class EndoWristPathSubscriber : MonoBehaviour
             if (jawDx != null) jawDx.Write(values[2]);
             if (jawSx != null) jawSx.Write(values[3]);
 
-            Debug.Log($"EndoWristPathSubscriber: Pinza aplicada -> shaft={values[0]:F4}, wrist={values[1]:F4}, jaw_dx={values[2]:F4}, jaw_sx={values[3]:F4}");
+            Debug.Log($"EndoWristPathSubscriber (/endowrist_command): Pinza aplicada -> shaft={values[0]:F4}, wrist={values[1]:F4}, jaw_dx={values[2]:F4}, jaw_sx={values[3]:F4}");
         }
     }
 

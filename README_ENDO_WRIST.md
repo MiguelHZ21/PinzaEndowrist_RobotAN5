@@ -35,16 +35,13 @@ La pinza consta de 4 articulaciones controladas independientemente:
 
 ## 3. Convenciones de Unidades y Transformación
 
-Para garantizar la interoperabilidad entre capas del sistema:
+Para garantizar la interoperabilidad y simplicidad entre todas las capas del sistema:
 
-1. **Unity, UI y Archivos TXT (`ArticularPoints.txt`, `CartesianPoints.txt`)**:
+1. **Unity, UI, Archivos TXT (`ArticularPoints.txt`, `CartesianPoints.txt`) y Tópicos ROS 2 de la Pinza**:
    * **Unidad**: **GRADOS ($^\circ$)**.
-   * Todos los campos de texto, sliders y puntos guardados se leen y escriben en grados.
+   * Todos los campos de texto, sliders, puntos guardados y mensajes en `/current_endowrist_position` y `/endowrist_command` se leen y escriben en grados (`"shaft,wrist,jaw_dx,jaw_sx"`).
 
-2. **Capa ROS 2 (`sensor_msgs/msg/JointState`, Simulador, Emulador)**:
-   * **Unidad**: **RADIANES ($\text{rad}$)**.
-
-3. **Ecuaciones de Conversión**:
+2. **Ecuaciones de Conversión (cuando se requiera internamente)**:
    $$\text{Ángulo}_{\text{rad}} = \text{Ángulo}_{\text{deg}} \times \frac{\pi}{180}$$
    $$\text{Ángulo}_{\text{deg}} = \text{Ángulo}_{\text{rad}} \times \frac{180}{\pi}$$
 
@@ -52,7 +49,7 @@ Para garantizar la interoperabilidad entre capas del sistema:
 
 ## 4. Estructura de Archivos de Trayectoria (`TXT`)
 
-Si deseas generar archivos de puntos compatibles con el sistema (`fr5_ik_node.py` o Unity), deben seguir las siguientes estructuras exactas.
+Si deseas generar archivos de puntos compatibles con el sistema (`Main_node/Run_node.py` o Unity), deben seguir las siguientes estructuras exactas.
 
 ### 4.1. Archivo Articular (`ArticularPoints.txt`)
 ```text
@@ -78,22 +75,19 @@ X,Y,Z,Rx,Ry,Rz,speed,delay,shaft_deg,wrist_deg,jaw_dx_deg,jaw_sx_deg
 
 ---
 
-## 5. Protocolos de Comunicación ROS 2
+## 5. Protocolos de Comunicación ROS 2 (2 Tópicos Unificados)
 
-Para controlar o escuchar la pinza desde un script externo en ROS 2:
+Para controlar o escuchar la pinza desde cualquier nodo en ROS 2 o Unity, existen **únicamente dos tópicos**:
 
-### 5.1. Tópico `/endowrist` (Publicador/Suscriptor de Estado)
-* **Tipo de Mensaje**: `sensor_msgs/msg/JointState`
-* **Estructura del Mensaje**:
-  ```python
-  msg = JointState()
-  msg.name = ["shaft", "wrist", "jaw_dx", "jaw_sx"]
-  msg.position = [shaft_rad, wrist_rad, jaw_dx_rad, jaw_sx_rad]
-  ```
-
-### 5.2. Tópico `/input_endo_wrist` (Comandos directos desde Unity)
+### 5.1. Tópico `/current_endowrist_position` (Lectura de Posición Real de los Servos)
 * **Tipo de Mensaje**: `std_msgs/msg/String`
-* **Formato**: `"shaft_deg,wrist_deg,jaw_dx_deg,jaw_sx_deg"` (Valores en grados en texto separado por comas).
+* **Formato**: `"shaft_deg,wrist_deg,jaw_dx_deg,jaw_sx_deg"` (Valores reales leídos de los servomotores en **GRADOS**, separados por comas).
+* **Uso**: Publicado por el nodo de los servomotores (o el emulador) y leído por Unity (`EndoWristSubscriber`) y por `Main_node/Run_node.py` para verificar que la pinza alcanzó su setpoint en el modo `con_pinza`.
+
+### 5.2. Tópico `/endowrist_command` (Envío de Comandos a la Pinza)
+* **Tipo de Mensaje**: `std_msgs/msg/String`
+* **Formato**: `"shaft_deg,wrist_deg,jaw_dx_deg,jaw_sx_deg"` (Valores objetivo en **GRADOS**, separados por comas).
+* **Uso**: Publicado por Unity (`Ros2CommandSender`) o por `Main_node/Run_node.py` y `MoveL.py` al ejecutar trayectorias en modo `con_pinza`. Escuchado por el nodo controlador de los servomotores ST3215 y por Unity (`EndoWristPathSubscriber`).
 
 ---
 
@@ -126,7 +120,7 @@ def generate_endowrist_trajectory(output_filename="ArticularPoints.txt", num_poi
             wrist_deg = 30.0 * math.cos(math.pi * t)            # Transición entre -70° y +70°
             jaw_dx_deg = 20.0 + 15.0 * math.sin(4 * math.pi * t)# Rango [-60°, +60°]
             jaw_sx_deg = jaw_dx_deg                              # Movimiento simétrico
-            
+        
             # Escribir línea CSV
             line = (
                 f"{x:.2f},{y:.2f},{z:.2f},{rx:.2f},{ry:.2f},{rz:.2f},"
@@ -145,8 +139,8 @@ if __name__ == "__main__":
 
 ## 7. Resumen de Reglas de Oro
 
-1. **Grados en Archivos/UI**: Al escribir o modificar archivos `.txt` o interactuar con Unity, utiliza **siempre GRADOS**.
-2. **Radianes en ROS**: Al publicar en tópicos ROS 2 (`sensor_msgs/JointState`), convierte previamente a **RADIANES**.
+1. **Grados en Archivos, UI y Tópicos de la Pinza**: Al escribir o modificar archivos `.txt` (`ArticularPoints.txt`, `CartesianoPoints.txt`, `RecordPoints.txt`), interactuar con Unity o publicar en `/endowrist_command` y `/current_endowrist_position` (`std_msgs/msg/String`), utiliza **siempre GRADOS**.
+2. **Modo Manual y Preview seguros**: En modo manual o durante un *Preview*, las modificaciones mueven únicamente el modelo URDF virtual en Unity; los actuadores físicos solo se accionan al presionar **Send**.
 3. **Respetar Límites**:
    * `shaft`: $[-180^\circ, 180^\circ]$ ($\approx [-3.1416, 3.1416]\text{ rad}$)
    * `wrist`: $[-70^\circ, 70^\circ]$ ($\approx [-1.2217, 1.2217]\text{ rad}$)

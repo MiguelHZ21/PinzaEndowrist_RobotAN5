@@ -86,6 +86,10 @@ public class JointStateWriter : MonoBehaviour
 
         // Se asigna el nuevo estado y se marca que se recibió un nuevo valor.
         newState = state;
+        if (IsEndoWrist())
+        {
+            currentAngle = state;
+        }
         isNewStateReceived = true;
     }
 

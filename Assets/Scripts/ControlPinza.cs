@@ -1,9 +1,7 @@
-/*******************
-Autores:    Angel Garzon Sarzosa (ahgarzon@unicauca.edu.co)
-            Jhoan Simei Sarria (simei@unicauca.edu.co)
-Modificado: Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+/***************************************************************
+Autores:    Miguel Hernandez (miguelhernandez@unicauca.edu.co)
             Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
-*******************/
+***************************************************************/
 using UnityEngine;
 using UnityEngine.UI;
 using RosSharp.RosBridgeClient;
@@ -37,8 +35,14 @@ public class ControlPinza : MonoBehaviour
     public TMPro.TextMeshProUGUI textValueJawDx;
     public TMPro.TextMeshProUGUI textValueJawSx;
 
+    [Header("Enlaces ROS 2")]
+    public EndoWristSubscriber endoWristSubscriber;
+
     void Start()
     {
+        if (endoWristSubscriber == null)
+            endoWristSubscriber = FindObjectOfType<EndoWristSubscriber>();
+
         // Configurar listeners de los sliders
         if (sliderShaft != null)
             sliderShaft.onValueChanged.AddListener(OnShaftChanged);
@@ -51,36 +55,62 @@ public class ControlPinza : MonoBehaviour
     }
 
     // --- EndoWrist: callbacks de sliders ---
-    // Los valores se envían en GRADOS al JointStateWriter.
+    // Los valores se envían únicamente en GRADOS al JointStateWriter virtual (NO mueve los servos físicos hasta presionar Send).
+
+    private void PausePhysicalGripperSubscription()
+    {
+        if (endoWristSubscriber != null)
+            endoWristSubscriber.StopUpdating();
+    }
 
     private void OnShaftChanged(float value)
     {
+        PausePhysicalGripperSubscription();
         if (writerShaft != null)
+        {
+            writerShaft.InterpolationEnabled = false;
+            writerShaft.UnlockWriting();
             writerShaft.Write(value);
+        }
         if (textValueShaft != null)
             textValueShaft.text = value.ToString("F1") + "°";
     }
 
     private void OnWristChanged(float value)
     {
+        PausePhysicalGripperSubscription();
         if (writerWrist != null)
+        {
+            writerWrist.InterpolationEnabled = false;
+            writerWrist.UnlockWriting();
             writerWrist.Write(value);
+        }
         if (textValueWrist != null)
             textValueWrist.text = value.ToString("F1") + "°";
     }
 
     private void OnJawDxChanged(float value)
     {
+        PausePhysicalGripperSubscription();
         if (writerJawDx != null)
+        {
+            writerJawDx.InterpolationEnabled = false;
+            writerJawDx.UnlockWriting();
             writerJawDx.Write(value);
+        }
         if (textValueJawDx != null)
             textValueJawDx.text = value.ToString("F1") + "°";
     }
 
     private void OnJawSxChanged(float value)
     {
+        PausePhysicalGripperSubscription();
         if (writerJawSx != null)
+        {
+            writerJawSx.InterpolationEnabled = false;
+            writerJawSx.UnlockWriting();
             writerJawSx.Write(value);
+        }
         if (textValueJawSx != null)
             textValueJawSx.text = value.ToString("F1") + "°";
     }

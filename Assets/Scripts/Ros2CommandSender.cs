@@ -27,10 +27,10 @@ public class Ros2CommandSender : MonoBehaviour
     private Dictionary<string, string> advertisedTopics = new Dictionary<string, string>();
 
     [Header("Tópicos")]
-    public string commandTopic = "api_command"; 
-    public string inverseInputTopic = "input_cartesian_position"; 
-    public string directaInputTopic = "input_joint_position"; 
-    public string endoWristCommandTopic = "endowrist_command"; 
+    public string commandTopic = "/api_command"; 
+    public string inverseInputTopic = "/input_cartesian_position"; 
+    public string directaInputTopic = "/input_joint_position"; 
+    public string endoWristCommandTopic = "/endowrist_command"; 
 
     [Header("UI - Controles de Paro/Comando")]
     private InputField commandInputField; 

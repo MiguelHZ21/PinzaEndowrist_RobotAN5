@@ -156,6 +156,12 @@ public class Sendtxt : MonoBehaviour
                     safetyWarningText.text = validationError;
                 return;
             }
+            // Reactivar la lectura del robot y pinza físicos por si veníamos de un Preview
+            JointPositionSubscriber jointSub = FindObjectOfType<JointPositionSubscriber>();
+            if (jointSub != null) jointSub.StartUpdating();
+            EndoWristSubscriber pinzaSub = FindObjectOfType<EndoWristSubscriber>();
+            if (pinzaSub != null) pinzaSub.StartUpdating();
+
             RosString message = new RosString { data = selectedFilePath };
             rosSocket.Publish(filePathTopic, message);
             UnityEngine.Debug.Log("Ruta del archivo publicada en el tópico: " + filePathTopic);

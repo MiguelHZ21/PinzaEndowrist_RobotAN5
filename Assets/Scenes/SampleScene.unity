@@ -25931,8 +25931,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   commandTopic: /api_command
   inverseInputTopic: /input_cartesian_position
-  directaInputTopic: /output_cartesian_position
-  endoWristCommandTopic: endowrist_command
+  directaInputTopic: /input_joint_position
+  endoWristCommandTopic: /endowrist_command
   stopCommandButton: {fileID: 1484678298}
   duplicateStopCommandButton: {fileID: 681639979}
   modeManualPanel: {fileID: 2098383275}
@@ -36700,7 +36700,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9038137ab0e58695682fa56c6588706d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Topic: inverse_kinematics_result
+  Topic: /output_joint_position
   TimeStep: 0
   cartesianStateWriter: {fileID: 1490393091}
 --- !u!114 &2058056368
@@ -36727,7 +36727,7 @@ MonoBehaviour:
   ros2CommandSender: {fileID: 1490393088}
   jointPositionSubscriber: {fileID: 2058056365}
   cartesianPositionSubscriber: {fileID: 2058056366}
-  endoWristSubscriber: {fileID: 0}
+  endoWristSubscriber: {fileID: 2058056371}
   safetyWarningText: {fileID: 932361725}
 --- !u!114 &2058056369
 MonoBehaviour:
@@ -36741,7 +36741,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d34bc6cd6081dee87ae40c05402f61a9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Topic: /MGD_output
+  Topic: /output_cartesian_position
   TimeStep: 0
 --- !u!114 &2058056370
 MonoBehaviour:
@@ -36767,7 +36767,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b55a62ca2d71ce20e9a58305bdeeb9e9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Topic: /endowrist
+  Topic: /current_endowrist_position
   TimeStep: 0
   shaft: {fileID: 1275805660}
   wrist: {fileID: 2045657320}

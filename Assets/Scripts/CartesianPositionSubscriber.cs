@@ -29,9 +29,9 @@ public class CartesianPositionSubscriber : UnitySubscriber<RosString>
 
     protected override void Start()
     {
-        base.Start();
+        // Configurar el tópico ANTES de base.Start() para evitar condición de carrera en el hilo de suscripción
         Topic = "/current_cartesian_position";
-        // Mensajes de log eliminados para optimizar el rendimiento.
+        base.Start();
     }
     /// Se ejecuta cada vez que llega un mensaje del tópico.
     /// Se parsean los valores y se actualiza la posición interna.
@@ -47,7 +47,7 @@ public class CartesianPositionSubscriber : UnitySubscriber<RosString>
         float[] positions = new float[6];
         for (int i = 0; i < 6; i++)
         {
-            if (float.TryParse(parts[i], out float val))
+            if (float.TryParse(parts[i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float val))
             {
                 positions[i] = Mathf.Round(val * 100f) / 100f;
             }

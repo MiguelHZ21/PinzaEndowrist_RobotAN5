@@ -219,7 +219,7 @@ public class CartesianStateWriterNew : MonoBehaviour
 
         if (hasNaN)
         {
-            Debug.LogWarning("IK: Matlab devolvio NaN. No existe solucion para este punto.");
+            Debug.LogWarning("IK: Python devolvio NaN. No existe solucion para este punto.");
             awaitingInverseKinematics = false;
 
             // Revertir los datos ya guardados en las listas para este punto fallido
@@ -528,14 +528,12 @@ public class CartesianStateWriterNew : MonoBehaviour
                 int reIndex = i - start + 1;
                 // Generar el comando CARTPoint usando los parámetros almacenados en cartesianPositionsList
                 float[] pos = cartesianPositionsList[i];
-                string cartCmd = $"CARTPoint({reIndex},{pos[0]},{pos[1]},{pos[2]},{pos[3]},{pos[4]},{pos[5]})";
+                string cartCmd = string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "CARTPoint({0},{1},{2},{3},{4},{5},{6})",
+                    reIndex, pos[0], pos[1], pos[2], pos[3], pos[4], pos[5]);
                 ros2CommandSender.SendCommand(cartCmd);
                 Debug.Log("Enviado CARTPoint: " + cartCmd);
-
-                // Publicar posición de la pinza para este punto en /endowrist_command
-                if (endoWristPositionsList.Count > i)
-                    ros2CommandSender.SendEndoWristCommand(endoWristPositionsList[i]);
-
                 yield return new WaitForSeconds(0.05f);
             }
 
@@ -547,9 +545,15 @@ public class CartesianStateWriterNew : MonoBehaviour
                 {
                     int reIndex = i - start + 1;
                     float currentSpeed = speedList[i];
-                    string moveCmd = $"MoveL(CART{reIndex},{currentSpeed})";
+                    string moveCmd = string.Format(
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        "MoveL(CART{0},{1})", reIndex, currentSpeed);
                     ros2CommandSender.SendCommand(moveCmd);
                     Debug.Log("Enviado MoveL: " + moveCmd);
+
+                    // Publicar posición de la pinza sincronizada con el movimiento de este punto
+                    if (endoWristPositionsList.Count > i)
+                        ros2CommandSender.SendEndoWristCommand(endoWristPositionsList[i]);
 
                     // Usar la posición objetivo (resultado IK) del punto
                     float[] targetJointPositions = ikCartesianPositionsList[i];
@@ -576,9 +580,16 @@ public class CartesianStateWriterNew : MonoBehaviour
                 {
                     int reIndex = i - start + 1;
                     float currentSpeed = speedList[i];
-                    string splineCmd = $"MoveL(CART{reIndex},{currentSpeed})";
+                    string splineCmd = string.Format(
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        "MoveL(CART{0},{1})", reIndex, currentSpeed);
                     ros2CommandSender.SendCommand(splineCmd);
                     Debug.Log("Enviado: " + splineCmd);
+
+                    // Publicar posición de la pinza sincronizada con el movimiento de este punto
+                    if (endoWristPositionsList.Count > i)
+                        ros2CommandSender.SendEndoWristCommand(endoWristPositionsList[i]);
+
                     yield return new WaitForSeconds(0.5f);
                 }
                 ros2CommandSender.SendCommand("SplineEnd()");
@@ -601,6 +612,8 @@ public class CartesianStateWriterNew : MonoBehaviour
         UpdateCoordinatesDisplay();
         isManualEditing = false;
         isListening = true;
+        if (endoWristSubscriber != null)
+            endoWristSubscriber.StartUpdating();
     }
 
     // Corrutina: Refresca el display después de un pequeño delay

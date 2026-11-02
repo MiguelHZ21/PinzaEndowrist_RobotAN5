@@ -39,10 +39,6 @@ public class ButtonPanel : MonoBehaviour
         // El panel EndoWrist inicia oculto
         if (endoWristPanel != null)
             endoWristPanel.SetActive(false);
-
-        // El panel EndoWrist inicia oculto
-        if (endoWristPanel != null)
-            endoWristPanel.SetActive(false);
     }
 
     public void OpenCartesianPanel()
@@ -103,16 +99,19 @@ public class ButtonPanel : MonoBehaviour
         if (endoWristPanel != null)
             endoWristPanel.SetActive(panelToOpen == endoWristPanel);
 
-        // Si es jointPanel, recordPanel o txtPanel, se comportan igual que el panel articular:
-        // Se activa la actualización normal de articulaciones y cartesiano.
-        if (panelToOpen == jointPanel ||
-            panelToOpen == recordPanel ||
-            panelToOpen == txtPanel)
+        // Si es recordPanel o txtPanel, se activa la actualización normal desde el robot físico.
+        if (panelToOpen == recordPanel || panelToOpen == txtPanel)
         {
             if (jointPositionSubscriber != null)
-                jointPositionSubscriber.StartUpdating(); // Activa actualización normal en el panel articular.
+                jointPositionSubscriber.StartUpdating();
             if (cartesianWriter != null)
-                cartesianWriter.StartUpdating();         // Desactiva interpolación en el panel cartesiano (o lógica que tú uses).
+                cartesianWriter.StartUpdating();
+        }
+        // Si es jointPanel, mantener el estado actual (si no se está editando manualmente, sigue actualizando).
+        else if (panelToOpen == jointPanel)
+        {
+            if (cartesianWriter != null)
+                cartesianWriter.StartUpdating();
         }
         // Si es el panel cartesiano, se detiene la actualización normal y se activa la interpolación.
         else if (panelToOpen == cartesianPanel)
@@ -123,13 +122,11 @@ public class ButtonPanel : MonoBehaviour
                 jointPositionSubscriber.StopUpdating(); // Detiene actualización en el panel articular.
             // Además, aquí se reinicia la suscripción de jointPositionSubscriber sólo cuando se presione Send (desde el otro script).
         }
-        // Si es el panel EndoWrist, se comporta como el articular.
+        // Si es el panel EndoWrist, no reinicia jointPositionSubscriber para conservar la postura virtual
+        // que el usuario esté armando en el panel Articular o Cartesiano.
         else if (panelToOpen == endoWristPanel)
         {
-            if (jointPositionSubscriber != null)
-                jointPositionSubscriber.StartUpdating();
-            if (cartesianWriter != null)
-                cartesianWriter.StartUpdating();
+            // Se conserva el estado actual del robot virtual.
         }
     }
 

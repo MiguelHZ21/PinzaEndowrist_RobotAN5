@@ -28,9 +28,9 @@ public class InverseKinematicsSubscriber : UnitySubscriber<RosString>
     // Inicializa la suscripción al tópico ROS correspondiente.
     protected override void Start()
     {
+        // Configurar el tópico ANTES de base.Start() para evitar condición de carrera en el hilo de suscripción
+        Topic = "/output_joint_position"; // Tópico que recibe el resultado de la inversa en posiciones articulares 
         base.Start();
-        // Configurar el tópico al que se suscribirá
-        Topic = "output_joint_position"; // Tópico que recibe el resultado de la inversa en posiciones articulares 
     }
 
     // Método que se llama al recibir un mensaje del tópico suscrito.

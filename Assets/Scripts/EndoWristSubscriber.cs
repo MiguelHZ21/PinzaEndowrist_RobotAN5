@@ -1,21 +1,20 @@
-/*******************
-Autores:    Angel Garzon Sarzosa (ahgarzon@unicauca.edu.co)
-            Jhoan Simei Sarria (simei@unicauca.edu.co)
-Modificado: Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+/***************************************************************
+Autores:    Miguel Hernandez (miguelhernandez@unicauca.edu.co)
             Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
-*******************/
+***************************************************************/
+using System;
+using System.Globalization;
 using UnityEngine;
 using RosSharp.RosBridgeClient;
-using RosSharp.RosBridgeClient.MessageTypes.Sensor;
+using RosString = RosSharp.RosBridgeClient.MessageTypes.Std.String;
 
 /// <summary>
-/// Suscriptor para el tópico /endowrist (sensor_msgs/JointState).
-/// Actualiza la posición de las articulaciones de la pinza virtual en tiempo real
-/// en función de la información proveniente de ROS 2.
-/// NOTA: ROS publica en RADIANES; este suscriptor convierte a GRADOS
-/// antes de pasar los valores al JointStateWriter.
+/// Suscriptor para el tópico /current_endowrist_position (std_msgs/String).
+/// Lee la posición real de las articulaciones de la pinza (servos) en GRADOS:
+/// Formato: "shaft,wrist,jaw_dx,jaw_sx"
+/// Actualiza la rotación de la pinza virtual en Unity.
 /// </summary>
-public class EndoWristSubscriber : UnitySubscriber<JointState>
+public class EndoWristSubscriber : UnitySubscriber<RosString>
 {
     [Header("Componentes Robot URDF")]
     [Tooltip("Escritores de estado para actualizar la rotación de cada articulación de la pinza.")]
@@ -24,67 +23,63 @@ public class EndoWristSubscriber : UnitySubscriber<JointState>
     public JointStateWriter jawDx;
     public JointStateWriter jawSx;
 
+    [Header("Estado Interno")]
+    private bool isUpdating = true;
+    private float[] lastPositions = new float[4];
+
     protected override void Start()
     {
-        Topic = "/endowrist";
+        Topic = "/current_endowrist_position";
         base.Start();
 
-        Debug.Log("Suscrito al tópico: " + Topic);
+        Debug.Log("EndoWristSubscriber: Suscrito al tópico de posición real: " + Topic);
     }
 
-    protected override void ReceiveMessage(JointState message)
+    protected override void ReceiveMessage(RosString message)
     {
-        for (int i = 0; i < message.name.Length; i++)
+        if (!isUpdating)
+            return;
+
+        if (message == null || string.IsNullOrEmpty(message.data))
+            return;
+
+        string[] parts = message.data.Split(',');
+        if (parts.Length < 4)
         {
-            string jointName = message.name[i];
-            // ROS publica en RADIANES → convertir a GRADOS para el sistema interno
-            float positionDeg = (float)message.position[i] * Mathf.Rad2Deg;
+            Debug.LogWarning("EndoWristSubscriber: se esperaban 4 valores en grados (shaft,wrist,jaw_dx,jaw_sx), recibido: " + message.data);
+            return;
+        }
 
-            Debug.Log($"{jointName} -> {positionDeg}°");
-
-            switch (jointName)
+        if (float.TryParse(parts[0].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float shaftDeg) &&
+            float.TryParse(parts[1].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float wristDeg) &&
+            float.TryParse(parts[2].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float jawDxDeg) &&
+            float.TryParse(parts[3].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float jawSxDeg))
+        {
+            float[] newPositions = new float[] { shaftDeg, wristDeg, jawDxDeg, jawSxDeg };
+            float maxDiff = 0f;
+            for (int i = 0; i < 4; i++)
             {
-                case "shaft":
-                case "Shaft":
-                case "Endo_eje":
-                    if (shaft != null)
-                        shaft.Write(positionDeg);
-                    
-                    break;
-
-                case "wrist":
-                case "Wrist":
-                case "Endo_muneca":
-                    if (wrist != null)
-                        wrist.Write(positionDeg);
-                    
-                    break;
-
-                case "jaw_dx":
-                case "Jaw_Dx":
-                case "Endo_mandibula_dx":
-                    if (jawDx != null)
-                        jawDx.Write(positionDeg);
-                
-                    break;
-
-                case "jaw_sx":
-                case "Jaw_Sx":
-                case "Endo_mandibula_sx":
-                    if (jawSx != null)
-                        jawSx.Write(positionDeg);
-                    
-                    break;
-
-                default:
-                    Debug.LogWarning("Articulación no reconocida: " + jointName);
-                    break;
+                float diff = Mathf.Abs(newPositions[i] - lastPositions[i]);
+                if (diff > maxDiff) maxDiff = diff;
             }
+
+            if (maxDiff >= 0.001f)
+            {
+                if (shaft != null) shaft.Write(shaftDeg);
+                if (wrist != null) wrist.Write(wristDeg);
+                if (jawDx != null) jawDx.Write(jawDxDeg);
+                if (jawSx != null) jawSx.Write(jawSxDeg);
+                lastPositions = newPositions;
+            }
+        }
+        else
+        {
+            Debug.LogError("EndoWristSubscriber: Error al convertir grados desde: " + message.data);
         }
     }
 
     /// <summary>
-    /// Devuelve las posiciones actuales de la pinza en GRADOS.
+    /// Devuelve las posiciones actuales de la pinza en GRADOS (configuradas en el panel EndoWrist o recibidas del robot).
     /// Se leen las posiciones exactas en grados desde los JointStateWriters.
     /// </summary>
     public float[] GetLastKnownPositions()
@@ -95,5 +90,21 @@ public class EndoWristSubscriber : UnitySubscriber<JointState>
         float jawSxDeg = jawSx != null ? jawSx.GetCurrentUnityAngle() : 0f;
 
         return new float[] { shaftDeg, wristDeg, jawDxDeg, jawSxDeg };
+    }
+
+    /// <summary>
+    /// Detiene la actualización desde el tópico físico para conservar los ángulos virtuales del panel EndoWrist.
+    /// </summary>
+    public void StopUpdating()
+    {
+        isUpdating = false;
+    }
+
+    /// <summary>
+    /// Reanuda la actualización desde el tópico físico (/current_endowrist_position).
+    /// </summary>
+    public void StartUpdating()
+    {
+        isUpdating = true;
     }
 }

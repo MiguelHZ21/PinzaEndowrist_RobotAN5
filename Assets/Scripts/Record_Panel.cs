@@ -108,11 +108,12 @@ public class recordPanel : MonoBehaviour
         }
     }
 
-    // Método para grabar la posición actual del robot
+    // Método para grabar la posición actual del robot (físico) y la postura virtual del panel EndoWrist
     private void GrabarPosicionActual()
     {
         jointPositions = jointPositionSubscriber.GetLastKnownPositions();
         float[] cartesianPositions = cartesianPositionSubscriber.GetLastKnownCartesianPositions();
+        // Leer las posiciones configuradas en el panel EndoWrist (sin forzar la pinza física)
         if (endoWristSubscriber != null)
             endoWristPositions = endoWristSubscriber.GetLastKnownPositions();
 
@@ -129,6 +130,19 @@ public class recordPanel : MonoBehaviour
                 if (Mathf.Abs(jointPositions[i] - lastJointPositions[i]) > 0.01f ||
                     Mathf.Abs(cartesianPositions[i] - lastCartesianPositions[i]) > 0.1f)
                 { haCambiado = true; break; }
+            }
+
+            // También permitir grabar si el usuario modificó la postura de la pinza en el panel EndoWrist
+            if (!haCambiado && endoWristPositions != null)
+            {
+                for (int j = 0; j < endoWristPositions.Length; j++)
+                {
+                    if (Mathf.Abs(endoWristPositions[j] - lastEndoWristPositions[j]) > 0.1f)
+                    {
+                        haCambiado = true;
+                        break;
+                    }
+                }
             }
 
             if (haCambiado)
@@ -159,8 +173,12 @@ public class recordPanel : MonoBehaviour
     // Método para guardar la posición actual y actualizar la visualización
     private void GuardarPunto(float[] cartesianPositions)
     {
-        // Crear y guardar el comando JNTPoint en la lista
-        string jointCommand = $"JNTPoint({pointIndex},{jointPositions[0]},{jointPositions[1]},{jointPositions[2]},{jointPositions[3]},{jointPositions[4]},{jointPositions[5]})";
+        // Crear y guardar el comando JNTPoint en la lista usando CultureInfo.InvariantCulture
+        string jointCommand = string.Format(
+            System.Globalization.CultureInfo.InvariantCulture,
+            "JNTPoint({0},{1},{2},{3},{4},{5},{6})",
+            pointIndex, jointPositions[0], jointPositions[1], jointPositions[2],
+            jointPositions[3], jointPositions[4], jointPositions[5]);
         jointCommands.Add(jointCommand); 
         jointPositionsList.Add((float[])jointPositions.Clone()); // Guardar la posición articular actual en la lista
         pointIndices.Add(pointIndex);    
@@ -279,11 +297,6 @@ public class recordPanel : MonoBehaviour
 
                 ros2CommandSender.SendCommand(modifiedJointCommand);
                 Debug.Log($"Enviado: {modifiedJointCommand}");
-
-                // Publicar posición de la pinza para este punto en /endowrist_command
-                if (endoWristPositionsList.Count > i)
-                    ros2CommandSender.SendEndoWristCommand(endoWristPositionsList[i]);
-
                 yield return new WaitForSeconds(0.05f); // Pequeño delay entre comandos
             }
 
@@ -295,10 +308,16 @@ public class recordPanel : MonoBehaviour
                 {
                     int localIndex = (i - startIdx) + 1;
                     float currentSpeed = speedList[i];
-                    string moveCommand = $"MoveJ(JNT{localIndex},{currentSpeed})";
+                    string moveCommand = string.Format(
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        "MoveJ(JNT{0},{1})", localIndex, currentSpeed);
 
                     ros2CommandSender.SendCommand(moveCommand);
                     Debug.Log($"Enviado comando de movimiento: {moveCommand}");
+
+                    // Publicar posición de la pinza sincronizada con el movimiento de este punto
+                    if (endoWristPositionsList.Count > i)
+                        ros2CommandSender.SendEndoWristCommand(endoWristPositionsList[i]);
 
                     // Esperar hasta que el robot alcance la posición objetivo
                     float[] targetJointPositions = jointPositionsList[i];
@@ -331,9 +350,16 @@ public class recordPanel : MonoBehaviour
                 {
                     int localIndex = (i - startIdx) + 1;
                     float currentSpeed = speedList[i];
-                    string splineCommand = $"SplinePTP(JNT{localIndex},{currentSpeed})"; // Usar la velocidad correspondiente
+                    string splineCommand = string.Format(
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        "SplinePTP(JNT{0},{1})", localIndex, currentSpeed);
                     ros2CommandSender.SendCommand(splineCommand);
                     Debug.Log($"Enviado: {splineCommand}");
+
+                    // Publicar posición de la pinza sincronizada con el movimiento de este punto
+                    if (endoWristPositionsList.Count > i)
+                        ros2CommandSender.SendEndoWristCommand(endoWristPositionsList[i]);
+
                     yield return new WaitForSeconds(0.05f); // Pequeño delay entre comandos
                 }
 
@@ -345,6 +371,10 @@ public class recordPanel : MonoBehaviour
             // Pausa breve entre lotes para evitar saturación
             yield return new WaitForSeconds(0.1f);
         }
+
+        // Reactivar suscripción de pinza tras finalizar el envío
+        if (endoWristSubscriber != null)
+            endoWristSubscriber.StartUpdating();
 
         // **********************************************************************
         // Limpieza de todos los vectores y el texto tras el envío
@@ -465,6 +495,12 @@ public class recordPanel : MonoBehaviour
             }
             else
             {
+                // Restaurar las últimas posiciones grabadas al nuevo último punto de la lista
+                int lastIdx = jointPositionsList.Count - 1;
+                jointPositionsList[lastIdx].CopyTo(lastJointPositions, 0);
+                cartesianPositionsList[lastIdx].CopyTo(lastCartesianPositions, 0);
+                endoWristPositionsList[lastIdx].CopyTo(lastEndoWristPositions, 0);
+
                 // Actualizar el display: se elimina la última línea agregada
                 string[] lines = grabarDisplay.text.Split(new[] { '\n' }, System.StringSplitOptions.None);
                 if (lines.Length > 0)
@@ -559,7 +595,7 @@ public class recordPanel : MonoBehaviour
     // Método para guardar las posiciones cartesianas en un archivo txt
     private void GuardarEnTxt()
     {
-        string filePath = Path.Combine(savePath, "record_positions.txt"); // Definir la ruta completa del archivo
+        string filePath = Path.Combine(savePath, "RecordPoints.txt"); // Definir la ruta completa del archivo
 
         try
         {

@@ -36,20 +36,18 @@ public class JointPositionSubscriber : UnitySubscriber<RosString>
 
     protected override void Start()
     {
-        base.Start();
-
         if (jointStateWriters != null && jointStateWriters.Length > 0)
             lastPositions = new float[jointStateWriters.Length];
         else
             lastPositions = new float[6];
 
-        Topic = "current_joint_position";
+        // Configurar el tópico ANTES de base.Start() para evitar condición de carrera en el hilo de suscripción
+        Topic = "/current_joint_position";
+        base.Start();
     }
 
     protected override void ReceiveMessage(RosString message)
     {
-        Debug.Log("RAW: " + message.data);
-
         if (!isUpdating)
             return;
 
@@ -76,8 +74,6 @@ public class JointPositionSubscriber : UnitySubscriber<RosString>
             }
 
             newPositions[i] = degValue;
-
-            Debug.Log($"Joint {i}: {degValue} grados");
         }
 
         float computedMaxDiff = 0f;
@@ -89,8 +85,6 @@ public class JointPositionSubscriber : UnitySubscriber<RosString>
             if (diff > computedMaxDiff)
                 computedMaxDiff = diff;
         }
-
-        Debug.Log($"MaxDiff = {computedMaxDiff}");
 
         // Reducido para permitir movimientos muy pequeños
         if (computedMaxDiff >= 0.0001f)
@@ -104,9 +98,6 @@ public class JointPositionSubscriber : UnitySubscriber<RosString>
             for (int i = 0; i < jointStateWriters.Length; i++)
             {
                 float jointRad = newPositions[i] * Mathf.Deg2Rad;
-
-                Debug.Log($"Escribiendo Joint {i}: {jointRad} rad ({newPositions[i]}°)");
-
                 jointStateWriters[i].Write(jointRad);
             }
 

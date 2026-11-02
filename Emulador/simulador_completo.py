@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# ***************************************************************
+# Autores:    Miguel Hernandez (miguelhernandez@unicauca.edu.co)
+#             Cristian Gonzalez (cgonzalezg@unicauca.edu.co)
+# ***************************************************************
 # =========================================================================
-# ROS2 Sync Robot (String) + EndoWrist (JointState)
+# ROS2 Sync Robot (String) + EndoWrist (String)
 # Emulador de trayectoria que carga el archivo ArticularPoints/CartesianPoints
-# con la fecha más reciente y publica sincronizadamente en /current_joint_position y /endowrist.
+# con la fecha más reciente y publica sincronizadamente en
+# /current_joint_position y /current_endowrist_position (ambos en GRADOS).
 # =========================================================================
 
 import glob
@@ -15,12 +21,11 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSReliabilityPolicy
 from std_msgs.msg import String
-from sensor_msgs.msg import JointState
 
-# Importar solucionador de cinemática para FR5
-FR5_IK_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'fr5_ik')
-if os.path.exists(FR5_IK_PATH) and FR5_IK_PATH not in sys.path:
-    sys.path.insert(0, FR5_IK_PATH)
+# Importar solucionador de cinemática para FR5 desde Main_node
+MAIN_NODE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'Main_node')
+if os.path.exists(MAIN_NODE_PATH) and MAIN_NODE_PATH not in sys.path:
+    sys.path.insert(0, MAIN_NODE_PATH)
 
 try:
     # pyrefly: ignore [missing-import]
@@ -40,8 +45,8 @@ def find_latest_trajectory_file(search_dirs):
         "ArticularPoints_*.txt",
         "CartesianPoints_*.txt",
         "ArticularPoints.txt",
-        "CartesianPoints.txt",
-        "posiciones_articulares_*.txt"
+        "CartesianoPoints.txt",
+        "RecordPoints.txt",
     ]
 
     matching_files = []
@@ -57,7 +62,6 @@ def find_latest_trajectory_file(search_dirs):
 
     def get_sort_key(filepath):
         filename = os.path.basename(filepath)
-        # Extraer dígitos para obtener sello de fecha (ej. 20260927_183832)
         digits = ''.join(filter(str.isdigit, filename))
         if len(digits) >= 14:
             return (1, digits)
@@ -114,9 +118,8 @@ def load_trajectory_file(filepath):
                 q_deg = c0_5
 
             # Pinza: columnas 8, 9, 10, 11 (shaft, wrist, jaw_dx, jaw_sx en grados)
-            # Signo de shaft y wrist invertido según solicitud
             raw_pinza = [float(p) for p in parts[8:12]]
-            pinza_deg = [-raw_pinza[0], -raw_pinza[1], raw_pinza[2], raw_pinza[3]]
+            pinza_deg = [raw_pinza[0], raw_pinza[1], raw_pinza[2], raw_pinza[3]]
             robot_rows.append(q_deg)
             gripper_rows.append(pinza_deg)
 
@@ -132,23 +135,17 @@ class RobotEndowristSyncNode(Node):
     def __init__(self):
         super().__init__('robot_endowrist_sync')
 
-        # Perfiles QoS (Transient Local para String, Volatile para JointState)
-        qos_robot = QoSProfile(
+        qos_profile = QoSProfile(
             depth=10,
             durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
             reliability=QoSReliabilityPolicy.RELIABLE
         )
-        qos_gripper = QoSProfile(
-            depth=10,
-            durability=QoSDurabilityPolicy.VOLATILE,
-            reliability=QoSReliabilityPolicy.RELIABLE
-        )
 
         # =========================
-        # PUBLICADORES
+        # PUBLICADORES (AMBOS STRING EN GRADOS)
         # =========================
-        self.pub_robot = self.create_publisher(String, '/current_joint_position', qos_robot)
-        self.pub_gripper = self.create_publisher(JointState, '/endowrist', qos_gripper)
+        self.pub_robot = self.create_publisher(String, '/current_joint_position', qos_profile)
+        self.pub_gripper = self.create_publisher(String, '/current_endowrist_position', qos_profile)
 
         # =========================
         # BUSQUEDA DEL ARCHIVO MÁS RECIENTE
@@ -171,45 +168,36 @@ class RobotEndowristSyncNode(Node):
         self.index = 0
 
         # =========================
-        # FRECUENCIA DE EMULACIÓN (20 Hz)
+        # FRECUENCIA DE EMULACIÓN (40 Hz)
         # =========================
-        timer_period = 1.0 / 40.0  # 20 Hz
+        timer_period = 1.0 / 40.0
         self.timer = self.create_timer(timer_period, self.timer_callback)
 
-        self.get_logger().info('Emulador iniciado. Publicando en /current_joint_position y /endowrist...')
+        self.get_logger().info('Emulador iniciado. Publicando en /current_joint_position y /current_endowrist_position (GRADOS)...')
 
     def timer_callback(self):
         # =====================================================
-        # ROBOT (STRING)
+        # ROBOT (STRING EN GRADOS)
         # =====================================================
         robot_vals = self.traj_robot[self.index]
         msg_robot = String()
         msg_robot.data = ','.join([f'{val:.4f}' for val in robot_vals])
 
         # =====================================================
-        # PINZA (JOINTSTATE)
+        # PINZA (STRING EN GRADOS: shaft,wrist,jaw_dx,jaw_sx)
         # =====================================================
         shaft_deg, wrist_deg, jaw_dx_deg, jaw_sx_deg = self.traj_gripper[self.index]
 
-        # Convertir a radianes para ROS: ambas mandíbulas deben ser negativas (-abs) para abrirse en simulación ROS
-        shaft_rad = math.radians(shaft_deg)
-        wrist_rad = math.radians(wrist_deg)
-        jaw_dx_rad = -abs(math.radians(jaw_dx_deg)) if abs(jaw_dx_deg) > 1e-3 else 0.0
-        jaw_sx_rad = -abs(math.radians(jaw_sx_deg)) if abs(jaw_sx_deg) > 1e-3 else 0.0
-
-        # Aplicar límites suaves para protección (-60° a 0° para apertura ROS)
-        grip_rad = [
-            max(min(shaft_rad, math.pi), -math.pi),        # +/- 180°
-            max(min(wrist_rad, 1.2217), -1.2217),         # +/- 70°
-            max(min(jaw_dx_rad, 0.0), -1.0472),           # -60° a 0°
-            max(min(jaw_sx_rad, 0.0), -1.0472)            # -60° a 0°
+        # Aplicar límites suaves para protección en grados
+        grip_deg = [
+            max(min(shaft_deg, 180.0), -180.0),   # +/- 180°
+            max(min(wrist_deg, 70.0), -70.0),     # +/- 70°
+            max(min(jaw_dx_deg, 60.0), -60.0),    # +/- 60°
+            max(min(jaw_sx_deg, 60.0), -60.0)     # +/- 60°
         ]
 
-        msg_gripper = JointState()
-        msg_gripper.header.stamp = self.get_clock().now().to_msg()
-        msg_gripper.header.frame_id = 'endowrist'
-        msg_gripper.name = ['shaft', 'wrist', 'jaw_dx', 'jaw_sx']
-        msg_gripper.position = grip_rad
+        msg_gripper = String()
+        msg_gripper.data = ','.join([f'{val:.6f}' for val in grip_deg])
 
         # =====================================================
         # PUBLICACIÓN SINCRONIZADA
@@ -218,7 +206,7 @@ class RobotEndowristSyncNode(Node):
         self.pub_gripper.publish(msg_gripper)
 
         # LOG DEBUG EN CONSOLA
-        print(f'[{self.index + 1}/{self.num_samples}] Robot(String): {msg_robot.data[:30]}... | Pinza(deg): [{shaft_deg:.1f}, {wrist_deg:.1f}, {jaw_dx_deg:.1f}, {jaw_sx_deg:.1f}]')
+        print(f'[{self.index + 1}/{self.num_samples}] Robot(deg): {msg_robot.data[:30]}... | Pinza(deg): {msg_gripper.data}')
 
         # REPETICIÓN EN BUCLE
         self.index += 1

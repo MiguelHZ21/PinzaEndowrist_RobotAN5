@@ -80,6 +80,8 @@ public class ControlArticular : MonoBehaviour
     private Queue<int> pendingMGDIndices = new Queue<int>();
     private bool hasPendingMGD = false;
     private string pendingMGDMessage = null;
+    private float[] pendingInitialJoints = null;
+    private bool hasPendingInitialJoints = false;
 
     private string savePath = "/home/miguel/Interfaz Unity AN5"; // TODO: Reemplazar con Application.dataPath
 
@@ -181,8 +183,8 @@ public class ControlArticular : MonoBehaviour
         // Iniciar actualizaciones de posiciones articulares
         jointPositionSubscriber.StartUpdating();
 
-        // FORZAR actualización inicial de los inputs (sliders y campos)
-        UpdateInitialJointPositions(jointPositionSubscriber.GetLastKnownPositions());
+        // FORZAR actualización inicial de los inputs (sliders y campos) en el hilo principal
+        ApplyInitialJointPositionsToUI(jointPositionSubscriber.GetLastKnownPositions());
     }
 
     // Establecer límites para los sliders de articulaciones
@@ -227,8 +229,13 @@ public class ControlArticular : MonoBehaviour
     // Manejar el cambio de valor en los campos de entrada de articulaciones
     private void OnInputFieldValueChanged(int index, string value)
     {
-        if (float.TryParse(value, out float result))
+        if (float.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float result))
         {
+            if (!isArticularModeActive)
+            {
+                isArticularModeActive = true;
+                jointPositionSubscriber.StopUpdating();
+            }
             result = Mathf.Clamp(result, jointSliders[index].minValue, jointSliders[index].maxValue);
             jointPositions[index] = result;
             jointSliders[index].value = result; // Actualizar slider con valor ingresado
@@ -240,6 +247,11 @@ public class ControlArticular : MonoBehaviour
     // Aumentar el valor de una articulación específica
     private void IncreaseJointValue(int index)
     {
+        if (!isArticularModeActive)
+        {
+            isArticularModeActive = true;
+            jointPositionSubscriber.StopUpdating();
+        }
         float newValue = jointPositions[index] + 1f;
         newValue = Mathf.Clamp(newValue, jointSliders[index].minValue, jointSliders[index].maxValue);
         jointPositions[index] = newValue;
@@ -257,6 +269,11 @@ public class ControlArticular : MonoBehaviour
     // Disminuir el valor de una articulación específica
     private void DecreaseJointValue(int index)
     {
+        if (!isArticularModeActive)
+        {
+            isArticularModeActive = true;
+            jointPositionSubscriber.StopUpdating();
+        }
         float newValue = jointPositions[index] - 1f;
         newValue = Mathf.Clamp(newValue, jointSliders[index].minValue, jointSliders[index].maxValue);
         jointPositions[index] = newValue;
@@ -336,21 +353,35 @@ public class ControlArticular : MonoBehaviour
         }
     }
 
-    // Actualizar las posiciones iniciales de las articulaciones desde el suscriptor
+    // Recibir las posiciones de las articulaciones desde el suscriptor (hilo secundario de ROS)
     private void UpdateInitialJointPositions(float[] initialPositions)
     {
+        if (isArticularModeActive || initialPositions == null)
+            return;
+
+        pendingInitialJoints = (float[])initialPositions.Clone();
+        hasPendingInitialJoints = true;
+    }
+
+    // Aplicar las posiciones articulares a los Sliders e InputFields de forma segura en el hilo principal de Unity
+    private void ApplyInitialJointPositionsToUI(float[] initialPositions)
+    {
+        if (isArticularModeActive || initialPositions == null)
+            return;
+
         for (int i = 0; i < initialPositions.Length; i++)
         {
             float roundedValue = Mathf.Round(initialPositions[i] * 100f) / 100f; // Redondear a dos decimales
 
-            jointSliders[i].value = roundedValue;  // Actualizar slider con valor recibido
+            // Usar SetValueWithoutNotify para no disparar OnSliderValueChanged (que bloquearía jointPositionSubscriber al inicio)
+            jointSliders[i].SetValueWithoutNotify(roundedValue);
             jointPositions[i] = roundedValue;      // Guardar en el array de posiciones
 
             jointStateWriters[i].Write(roundedValue * Mathf.Deg2Rad);  // Actualizar URDF
 
             if (jointValueInputs != null && jointValueInputs.Length > i)
             {
-                jointValueInputs[i].text = roundedValue.ToString(); // Actualizar campo de entrada
+                jointValueInputs[i].SetTextWithoutNotify(roundedValue.ToString(System.Globalization.CultureInfo.InvariantCulture));
             }
         }
     }
@@ -473,6 +504,15 @@ public class ControlArticular : MonoBehaviour
 
     void Update()
     {
+        // Actualizar sliders e inputs desde el robot real de forma segura en el hilo principal
+        if (hasPendingInitialJoints && pendingInitialJoints != null)
+        {
+            hasPendingInitialJoints = false;
+            float[] jointsToApply = pendingInitialJoints;
+            pendingInitialJoints = null;
+            ApplyInitialJointPositionsToUI(jointsToApply);
+        }
+
         // Procesar el resultado MGD en el hilo principal de Unity.
         // El hilo de ROS solo llena 'pendingMGDMessage'; aquí lo consumimos
         // de forma segura para poder modificar la UI y estructuras de datos.
@@ -649,23 +689,18 @@ public class ControlArticular : MonoBehaviour
             int startIdx = batch * batchSize;
             int endIdx = Mathf.Min(startIdx + batchSize, jointPositionsList.Count);
 
-            // Enviar JNTPoint() para el lote actual
+            // Enviar JNTPoint() para definir el lote actual en la memoria del robot
             for (int i = startIdx; i < endIdx; i++)
             {
                 int localIndex = (i - startIdx) + 1; // Índice local de 1 a batchSize
                 float[] jointPos = jointPositionsList[i];
-                string jointPositionsString = string.Join(",", jointPos);
-                string jointCommand = $"JNTPoint({localIndex},{jointPositionsString})";
+                string jointCommand = string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "JNTPoint({0},{1},{2},{3},{4},{5},{6})",
+                    localIndex, jointPos[0], jointPos[1], jointPos[2], jointPos[3], jointPos[4], jointPos[5]);
                 ros2CommandSender.SendCommand(jointCommand);
                 Debug.Log($"Enviado: {jointCommand}");
-
-                // Publicar posición de la pinza para este punto en /endowrist_command
-                if (endoWristPositionsList.Count > i)
-                    ros2CommandSender.SendEndoWristCommand(endoWristPositionsList[i]);
-
-                // Utilizar el delay especificado por el usuario para este punto, si está disponible
-                float pointDelay = (i < delayList.Count) ? delayList[i] : 0.05f;
-                yield return new WaitForSeconds(pointDelay); // Delay dinámico entre comandos
+                yield return new WaitForSeconds(0.05f); // Breve delay entre definiciones de puntos
             }
 
             // Verificar si el modo delay está activo
@@ -676,10 +711,16 @@ public class ControlArticular : MonoBehaviour
                 {
                     int localIndex = (i - startIdx) + 1;
                     float currentSpeed = speedList[i];
-                    string moveCommand = $"MoveJ(JNT{localIndex},{currentSpeed})";
+                    string moveCommand = string.Format(
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        "MoveJ(JNT{0},{1})", localIndex, currentSpeed);
 
                     ros2CommandSender.SendCommand(moveCommand);
                     Debug.Log($"Enviado comando de movimiento: {moveCommand}");
+
+                    // Publicar posición de la pinza sincronizada con el movimiento de este punto
+                    if (endoWristPositionsList.Count > i)
+                        ros2CommandSender.SendEndoWristCommand(endoWristPositionsList[i]);
 
                     // Esperar a que el robot alcance la posición objetivo
                     float[] targetJointPositions = jointPositionsList[i];
@@ -711,9 +752,16 @@ public class ControlArticular : MonoBehaviour
                 {
                     int localIndex = (i - startIdx) + 1;
                     float currentSpeed = speedList[i];
-                    string splineCommand = $"SplinePTP(JNT{localIndex},{currentSpeed})";
+                    string splineCommand = string.Format(
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        "SplinePTP(JNT{0},{1})", localIndex, currentSpeed);
                     ros2CommandSender.SendCommand(splineCommand);
                     Debug.Log($"Enviado: {splineCommand}");
+
+                    // Publicar posición de la pinza sincronizada con el movimiento de este punto
+                    if (endoWristPositionsList.Count > i)
+                        ros2CommandSender.SendEndoWristCommand(endoWristPositionsList[i]);
+
                     yield return new WaitForSeconds(0.05f); // Breve delay entre comandos
                 }
 
@@ -735,9 +783,11 @@ public class ControlArticular : MonoBehaviour
         pendingMGDIndices.Clear();
         UpdateCoordinatesDisplay();
 
-        // Reactivar actualizaciones automáticas de posiciones articulares
+        // Reactivar actualizaciones automáticas de posiciones articulares y de la pinza
         isArticularModeActive = false;
         jointPositionSubscriber.StartUpdating();
+        if (endoWristSubscriber != null)
+            endoWristSubscriber.StartUpdating();
     }
 
     // Esperar a que el robot alcance la posición objetivo dentro de una tolerancia

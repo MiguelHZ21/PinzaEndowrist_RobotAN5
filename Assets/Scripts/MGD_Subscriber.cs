@@ -25,8 +25,8 @@ public class MGD_Subscriber : UnitySubscriber<RosString>
     // Inicializa la suscripción al tópico ROS correspondiente
     protected override void Start()
     {
-        // Configurar el tópico al que se suscribirá
-        Topic = "output_cartesian_position"; // topico que recibe el resultado de la cinematica directa en posciones cartesianas 
+        // Configurar el tópico al que se suscribirá ANTES de base.Start()
+        Topic = "/output_cartesian_position"; // topico que recibe el resultado de la cinematica directa en posciones cartesianas 
         Debug.Log("MGD_Subscriber suscrito al tópico: " + Topic); // Mensaje en español
 
         base.Start(); // Ahora se suscribe al tópico correcto
